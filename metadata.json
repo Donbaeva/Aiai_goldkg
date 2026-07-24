@@ -1,0 +1,6 @@
+{
+  "name": "AiAi Gold",
+  "description": "Приложение для учета и управления ювелирными активами и премиальными украшениями из золота.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
