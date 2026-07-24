@@ -28,8 +28,8 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
-  const [selectedProductId, setSelectedProductId] = useState<string>('prod-1');
-  const [viewMode, setViewMode] = useState<ViewMode>('detail');
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [viewMode, setViewMode] = useState<ViewMode>('catalog');
 
   // Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -94,10 +94,10 @@ export default function App() {
     }
   };
 
-  const selectedProduct =
-    products.find((p) => p.id === selectedProductId) || products[0] || INITIAL_PRODUCTS[0];
+  const selectedProduct = products.find((p) => p.id === selectedProductId) || products[0];
 
   const handleUpdateNotes = (newNotes: string) => {
+    if (!selectedProduct) return;
     const updated = { ...selectedProduct, internalNotes: newNotes };
     setProducts((prev) => prev.map((p) => (p.id === selectedProduct.id ? updated : p)));
     saveProductRemote(updated).catch((e) => setConnectionError(String(e)));
@@ -105,7 +105,8 @@ export default function App() {
 
   const handleToggleFavorite = (productId?: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    const idToToggle = productId || selectedProduct.id;
+    const idToToggle = productId || selectedProduct?.id;
+    if (!idToToggle) return;
     const target = products.find((p) => p.id === idToToggle);
     if (!target) return;
     const updated = { ...target, isFavorite: !target.isFavorite };
@@ -127,6 +128,7 @@ export default function App() {
   };
 
   const handleAddAuditRecord = (record: AuditRecord) => {
+    if (!selectedProduct) return;
     const updated = {
       ...selectedProduct,
       lastAudit: record.date,
@@ -155,6 +157,7 @@ export default function App() {
   };
 
   const handleOpenEditProductModal = () => {
+    if (!selectedProduct) return;
     setEditingProduct(selectedProduct);
     setIsEditModalOpen(true);
   };
@@ -178,7 +181,7 @@ export default function App() {
       <Navbar
         currentView={viewMode}
         onViewChange={setViewMode}
-        selectedProduct={selectedProduct}
+        selectedProduct={selectedProduct ?? null}
         onOpenShare={() => setIsShareModalOpen(true)}
         onOpenAuditLog={() => setIsAuditModalOpen(true)}
         productCount={products.length}
@@ -186,7 +189,7 @@ export default function App() {
 
       {/* Main View Area */}
       <main className="flex-1 pt-16 pb-32">
-        {viewMode === 'detail' ? (
+        {viewMode === 'detail' && selectedProduct ? (
           <div className="max-w-screen-xl mx-auto md:px-8 py-4 md:py-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Image Gallery */}
@@ -219,7 +222,7 @@ export default function App() {
       </main>
 
       {/* Fixed Action Bar (Only shown on detail view) */}
-      {viewMode === 'detail' && (
+      {viewMode === 'detail' && selectedProduct && (
         <ActionBar
           onEditProduct={handleOpenEditProductModal}
           isFavorite={selectedProduct.isFavorite}
@@ -238,18 +241,22 @@ export default function App() {
         onAddCategory={handleAddCategory}
       />
 
-      <ShareModal
-        product={selectedProduct}
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-      />
+      {selectedProduct && (
+        <ShareModal
+          product={selectedProduct}
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+        />
+      )}
 
-      <AuditLogModal
-        product={selectedProduct}
-        isOpen={isAuditModalOpen}
-        onClose={() => setIsAuditModalOpen(false)}
-        onAddAuditRecord={handleAddAuditRecord}
-      />
+      {selectedProduct && (
+        <AuditLogModal
+          product={selectedProduct}
+          isOpen={isAuditModalOpen}
+          onClose={() => setIsAuditModalOpen(false)}
+          onAddAuditRecord={handleAddAuditRecord}
+        />
+      )}
 
       <CategoryManagerModal
         isOpen={isCategoryModalOpen}
