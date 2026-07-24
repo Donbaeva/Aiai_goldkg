@@ -18,7 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuditLog,
   productCount,
 }) => {
-  const [showMoreMenu && selectedProduct && setShowMoreMenu] = React.useState(false);
+  const [showMoreMenu, setShowMoreMenu] = React.useState(false);
 
   return (
     <header className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 md:px-8 h-16 bg-[#fcf8fb] border-b border-[#d0c5af]/30 glass-effect">
@@ -91,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="material-symbols-outlined">more_vert</span>
           </button>
 
-          {showMoreMenu && (
+          {showMoreMenu && selectedProduct && (
             <div 
               className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-[#d0c5af]/40 py-2 z-50 text-sm"
               onClick={() => setShowMoreMenu(false)}
@@ -119,13 +119,4 @@ export const Navbar: React.FC<NavbarProps> = ({
                 rel="noreferrer"
                 className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f5] text-[#1b1b1d] flex items-center gap-2"
               >
-                <span className="material-symbols-outlined text-lg text-[#735c00]">open_in_new</span>
-                Проверить сертификат
-              </a>
-            </div>
-          )}
-        </div>
-      </div>
-    </header>
-  );
-};
+                <span className="material-symbols-outlined text-lg text-[#735c00]">open_in_new
