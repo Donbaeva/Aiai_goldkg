@@ -4,7 +4,7 @@ import { ViewMode, JewelryProduct } from '../types';
 interface NavbarProps {
   currentView: ViewMode;
   onViewChange: (view: ViewMode) => void;
-  selectedProduct: JewelryProduct;
+  selectedProduct: JewelryProduct | null;
   onOpenShare: () => void;
   onOpenAuditLog: () => void;
   productCount: number;
@@ -18,7 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuditLog,
   productCount,
 }) => {
-  const [showMoreMenu, setShowMoreMenu] = React.useState(false);
+  const [showMoreMenu && selectedProduct && setShowMoreMenu] = React.useState(false);
 
   return (
     <header className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 md:px-8 h-16 bg-[#fcf8fb] border-b border-[#d0c5af]/30 glass-effect">
