@@ -1,5 +1,42 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { JewelryProduct, StockStatus, JewelryCategory } from '../types';
+
+/** Shrinks a picked photo to a reasonable size and compresses it to JPEG,
+ * so a whole product record (with several photos) stays well under
+ * Firestore's 1MB-per-document limit. Returns a data: URL, usable directly
+ * as an <img src>. */
+function resizeImageFile(file: File, maxDimension = 1200, quality = 0.8): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas not supported'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = () => reject(new Error('Не удалось прочитать изображение'));
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Не удалось прочитать файл'));
+    reader.readAsDataURL(file);
+  });
+}
 
 interface EditProductModalProps {
   product: JewelryProduct | null; // null if creating new
@@ -49,6 +86,9 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [showAddCategoryInput, setShowAddCategoryInput] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
+  const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (field: keyof JewelryProduct, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -80,6 +120,32 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
       ...prev,
       images: (prev.images || []).filter((_, i) => i !== index),
     }));
+  };
+
+  const handlePhotosSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setPhotoError(null);
+    setIsProcessingPhotos(true);
+    try {
+      const processed: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files.item(i);
+        if (!file) continue;
+        const dataUrl = await resizeImageFile(file);
+        processed.push(dataUrl);
+      }
+      setFormData((prev) => ({
+        ...prev,
+        images: [...(prev.images || []), ...processed],
+      }));
+    } catch (err) {
+      setPhotoError('Не удалось загрузить одно из фото. Попробуйте ещё раз.');
+      console.error(err);
+    } finally {
+      setIsProcessingPhotos(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -349,9 +415,31 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
           {/* Галерея изображений */}
           <div className="space-y-2">
             <label className="block text-xs font-semibold text-[#4d4635]">
-              Ссылки на фото (URL)
+              Фото украшения
             </label>
 
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotosSelected}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isProcessingPhotos}
+              className="w-full px-4 py-2.5 bg-[#735c00] hover:bg-[#574500] disabled:opacity-60 text-white rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-lg">add_a_photo</span>
+              {isProcessingPhotos ? 'Обработка фото…' : 'Выбрать фото с телефона'}
+            </button>
+            {photoError && <p className="text-xs text-red-600">{photoError}</p>}
+
+            <p className="text-[11px] text-[#4d4635]/70 pt-1">
+              Или вставьте ссылку на фото:
+            </p>
             <div className="flex gap-2">
               <input
                 type="url"
@@ -365,7 +453,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
                 onClick={handleAddImage}
                 className="px-4 py-2 bg-[#f0edef] hover:bg-[#eae7ea] text-[#735c00] rounded-xl text-xs font-semibold"
               >
-                Добавить фото
+                Добавить
               </button>
             </div>
 
