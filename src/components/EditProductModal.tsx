@@ -6,6 +6,7 @@ interface EditProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (updatedProduct: JewelryProduct) => void;
+  onDelete?: (productId: string) => void;
   categories?: string[];
   onAddCategory?: (catName: string) => void;
 }
@@ -15,6 +16,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onDelete,
   categories = ['Кольца', 'Колье и Цепи', 'Серьги', 'Браслеты', 'Жесткие браслеты'],
   onAddCategory,
 }) => {
@@ -86,6 +88,17 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
 
     onSave(formData as JewelryProduct);
     onClose();
+  };
+
+  const handleDeleteClick = () => {
+    if (!product || !onDelete) return;
+    const confirmed = window.confirm(
+      `Удалить «${product.name}» безвозвратно? Это действие нельзя отменить.`
+    );
+    if (confirmed) {
+      onDelete(product.id);
+      onClose();
+    }
   };
 
   return (
@@ -374,20 +387,34 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
           </div>
 
           {/* Кнопки действия */}
-          <div className="pt-4 border-t border-[#f0edef] flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 rounded-xl border border-[#d0c5af] text-[#4d4635] text-sm font-semibold hover:bg-[#eae7ea]"
-            >
-              Отмена
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-[#735c00] text-white text-sm font-bold hover:bg-[#574500] shadow-md shadow-[#735c00]/20"
-            >
-              Сохранить характеристики
-            </button>
+          <div className="pt-4 border-t border-[#f0edef] flex justify-between items-center gap-3">
+            {!isNew && onDelete ? (
+              <button
+                type="button"
+                onClick={handleDeleteClick}
+                className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 flex items-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-base">delete</span>
+                Удалить украшение
+              </button>
+            ) : (
+              <div />
+            )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 rounded-xl border border-[#d0c5af] text-[#4d4635] text-sm font-semibold hover:bg-[#eae7ea]"
+              >
+                Отмена
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 rounded-xl bg-[#735c00] text-white text-sm font-bold hover:bg-[#574500] shadow-md shadow-[#735c00]/20"
+              >
+                Сохранить характеристики
+              </button>
+            </div>
           </div>
         </form>
       </div>
