@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { JewelryProduct, AuditRecord, StockStatus } from '../types';
+import { useAdmin } from '../contexts/AdminContext';
 
 interface AuditLogModalProps {
   product: JewelryProduct;
@@ -14,6 +15,7 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({
   onClose,
   onAddAuditRecord,
 }) => {
+  const { isAdmin } = useAdmin();
   if (!isOpen) return null;
 
   const [isAdding, setIsAdding] = useState(false);
@@ -69,7 +71,7 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({
             <h3 className="text-xs font-semibold uppercase tracking-wider text-[#735c00]">
               Журнал проверок ({product.auditHistory.length})
             </h3>
-            {!isAdding && (
+            {!isAdding && isAdmin && (
               <button
                 onClick={() => setIsAdding(true)}
                 className="px-3 py-1.5 bg-[#735c00] text-white rounded-xl text-xs font-semibold hover:bg-[#574500] flex items-center gap-1"

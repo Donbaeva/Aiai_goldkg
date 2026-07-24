@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { JewelryProduct } from '../types';
+import { useAdmin } from '../contexts/AdminContext';
 
 interface ProductSpecsProps {
   product: JewelryProduct;
@@ -12,6 +13,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
   onUpdateNotes,
   onOpenAuditHistory,
 }) => {
+  const { isAdmin } = useAdmin();
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesText, setNotesText] = useState(product.internalNotes);
 
@@ -147,7 +149,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
               Внутренние заметки
             </h3>
           </div>
-          {!isEditingNotes && (
+          {!isEditingNotes && isAdmin && (
             <button
               onClick={() => setIsEditingNotes(true)}
               className="text-xs text-[#735c00] font-medium hover:underline flex items-center gap-1"

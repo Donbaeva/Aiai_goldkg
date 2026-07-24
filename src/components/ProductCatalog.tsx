@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { JewelryProduct, JewelryCategory, StockStatus } from '../types';
+import { useAdmin } from '../contexts/AdminContext';
 
 interface ProductCatalogProps {
   products: JewelryProduct[];
@@ -18,6 +19,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   onToggleFavorite,
   onOpenCategoryManager,
 }) => {
+  const { isAdmin } = useAdmin();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Все');
   const [selectedStatus, setSelectedStatus] = useState<string>('Все');
@@ -78,13 +80,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={onAddNewProduct}
-          className="bg-[#735c00] text-white px-5 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#574500] transition-all shadow-md shadow-[#735c00]/20 active:scale-95 cursor-pointer"
-        >
-          <span className="material-symbols-outlined text-xl">add</span>
-          Добавить украшение
-        </button>
+        {isAdmin && (
+          <button
+            onClick={onAddNewProduct}
+            className="bg-[#735c00] text-white px-5 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#574500] transition-all shadow-md shadow-[#735c00]/20 active:scale-95 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-xl">add</span>
+            Добавить украшение
+          </button>
+        )}
       </div>
 
       {/* Панель поиска и фильтров */}
@@ -154,14 +158,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </button>
         ))}
 
-        <button
-          onClick={onOpenCategoryManager}
-          className="px-3 py-2 rounded-xl text-xs md:text-sm font-semibold whitespace-nowrap bg-[#f0edef] hover:bg-[#eae7ea] text-[#735c00] border border-[#d0c5af]/40 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer ml-auto"
-          title="Настройка списка категорий"
-        >
-          <span className="material-symbols-outlined text-base">settings</span>
-          <span>Категории</span>
-        </button>
+        {isAdmin && (
+          <button
+            onClick={onOpenCategoryManager}
+            className="px-3 py-2 rounded-xl text-xs md:text-sm font-semibold whitespace-nowrap bg-[#f0edef] hover:bg-[#eae7ea] text-[#735c00] border border-[#d0c5af]/40 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer ml-auto"
+            title="Настройка списка категорий"
+          >
+            <span className="material-symbols-outlined text-base">settings</span>
+            <span>Категории</span>
+          </button>
+        )}
       </div>
 
       {/* Грид товаров */}
@@ -218,22 +224,24 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </span>
 
                     {/* Кнопка Избранного */}
-                    <button
-                      onClick={(e) => onToggleFavorite(product.id, e)}
-                      className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all ${
-                        product.isFavorite
-                          ? 'bg-white text-[#ba1a1a] shadow-md'
-                          : 'bg-black/30 text-white hover:bg-white hover:text-[#1b1b1d]'
-                      }`}
-                      title={product.isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
-                    >
-                      <span
-                        className="material-symbols-outlined text-lg block"
-                        style={{ fontVariationSettings: product.isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+                    {isAdmin && (
+                      <button
+                        onClick={(e) => onToggleFavorite(product.id, e)}
+                        className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all ${
+                          product.isFavorite
+                            ? 'bg-white text-[#ba1a1a] shadow-md'
+                            : 'bg-black/30 text-white hover:bg-white hover:text-[#1b1b1d]'
+                        }`}
+                        title={product.isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
                       >
-                        favorite
-                      </span>
-                    </button>
+                        <span
+                          className="material-symbols-outlined text-lg block"
+                          style={{ fontVariationSettings: product.isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+                        >
+                          favorite
+                        </span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Информация */}

@@ -10,6 +10,8 @@ import { EditProductModal } from './components/EditProductModal';
 import { ShareModal } from './components/ShareModal';
 import { AuditLogModal } from './components/AuditLogModal';
 import { CategoryManagerModal } from './components/CategoryManagerModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
+import { useAdmin } from './contexts/AdminContext';
 import {
   subscribeToProducts,
   subscribeToCategories,
@@ -23,6 +25,7 @@ import {
 const DEFAULT_CATEGORIES = ['Кольца', 'Колье и Цепи', 'Серьги', 'Браслеты', 'Жесткие браслеты'];
 
 export default function App() {
+  const { isAdmin, adminEmail } = useAdmin();
   const [products, setProducts] = useState<JewelryProduct[]>([]);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,6 +40,7 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
 
   // Connect to the shared Firestore catalog: seed it once if it's brand new,
   // then subscribe so every manager's screen updates in realtime.
@@ -69,6 +73,7 @@ export default function App() {
   }, []);
 
   const handleAddCategory = (newCat: string) => {
+    if (!isAdmin) return;
     const trimmed = newCat.trim();
     if (trimmed && !categories.includes(trimmed)) {
       const updated = [...categories, trimmed];
@@ -78,6 +83,7 @@ export default function App() {
   };
 
   const handleDeleteCategory = (catToDelete: string) => {
+    if (!isAdmin) return;
     const updatedCategories = categories.filter((c) => c !== catToDelete);
     setCategories(updatedCategories);
     saveCategoriesRemote(updatedCategories).catch((e) => setConnectionError(String(e)));
@@ -97,7 +103,7 @@ export default function App() {
   const selectedProduct = products.find((p) => p.id === selectedProductId) || products[0];
 
   const handleUpdateNotes = (newNotes: string) => {
-    if (!selectedProduct) return;
+    if (!isAdmin || !selectedProduct) return;
     const updated = { ...selectedProduct, internalNotes: newNotes };
     setProducts((prev) => prev.map((p) => (p.id === selectedProduct.id ? updated : p)));
     saveProductRemote(updated).catch((e) => setConnectionError(String(e)));
@@ -105,6 +111,7 @@ export default function App() {
 
   const handleToggleFavorite = (productId?: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    if (!isAdmin) return;
     const idToToggle = productId || selectedProduct?.id;
     if (!idToToggle) return;
     const target = products.find((p) => p.id === idToToggle);
@@ -115,6 +122,7 @@ export default function App() {
   };
 
   const handleSaveProduct = (updatedProduct: JewelryProduct) => {
+    if (!isAdmin) return;
     setProducts((prev) => {
       const exists = prev.some((p) => p.id === updatedProduct.id);
       if (exists) {
@@ -128,7 +136,7 @@ export default function App() {
   };
 
   const handleAddAuditRecord = (record: AuditRecord) => {
-    if (!selectedProduct) return;
+    if (!isAdmin || !selectedProduct) return;
     const updated = {
       ...selectedProduct,
       lastAudit: record.date,
@@ -140,6 +148,7 @@ export default function App() {
   };
 
   const handleDeleteProduct = (productId: string) => {
+    if (!isAdmin) return;
     setProducts((prev) => {
       const remaining = prev.filter((p) => p.id !== productId);
       if (selectedProductId === productId) {
@@ -152,12 +161,13 @@ export default function App() {
   };
 
   const handleOpenNewProductModal = () => {
+    if (!isAdmin) return;
     setEditingProduct(null);
     setIsEditModalOpen(true);
   };
 
   const handleOpenEditProductModal = () => {
-    if (!selectedProduct) return;
+    if (!isAdmin || !selectedProduct) return;
     setEditingProduct(selectedProduct);
     setIsEditModalOpen(true);
   };
@@ -185,6 +195,8 @@ export default function App() {
         onOpenShare={() => setIsShareModalOpen(true)}
         onOpenAuditLog={() => setIsAuditModalOpen(true)}
         productCount={products.length}
+        isAdmin={isAdmin}
+        onOpenAdmin={() => setIsAdminModalOpen(true)}
       />
 
       {/* Main View Area */}
@@ -221,8 +233,8 @@ export default function App() {
         )}
       </main>
 
-      {/* Fixed Action Bar (Only shown on detail view) */}
-      {viewMode === 'detail' && selectedProduct && (
+      {/* Fixed Action Bar (Only shown on detail view, admins only) */}
+      {viewMode === 'detail' && selectedProduct && isAdmin && (
         <ActionBar
           onEditProduct={handleOpenEditProductModal}
           isFavorite={selectedProduct.isFavorite}
@@ -265,6 +277,13 @@ export default function App() {
         products={products}
         onAddCategory={handleAddCategory}
         onDeleteCategory={handleDeleteCategory}
+      />
+
+      <AdminLoginModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        isAdmin={isAdmin}
+        adminEmail={adminEmail}
       />
     </div>
   );

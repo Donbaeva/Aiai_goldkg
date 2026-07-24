@@ -8,6 +8,8 @@ interface NavbarProps {
   onOpenShare: () => void;
   onOpenAuditLog: () => void;
   productCount: number;
+  isAdmin: boolean;
+  onOpenAdmin: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -17,6 +19,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenShare,
   onOpenAuditLog,
   productCount,
+  isAdmin,
+  onOpenAdmin,
 }) => {
   const [showMoreMenu, setShowMoreMenu] = React.useState(false);
 
@@ -119,14 +123,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                 rel="noreferrer"
                 className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f5] text-[#1b1b1d] flex items-center gap-2"
               >
-                                <span className="material-symbols-outlined text-lg text-[#735c00]">open_in_new</span>
+                <span className="material-symbols-outlined text-lg text-[#735c00]">open_in_new</span>
                 Проверить сертификат
               </a>
             </div>
           )}
         </div>
+
+        <button
+          onClick={onOpenAdmin}
+          className={`p-2 rounded-full transition-all active:scale-95 ${
+            isAdmin
+              ? 'bg-[#735c00] text-white hover:bg-[#574500]'
+              : 'text-[#735c00] hover:bg-[#eae7ea]'
+          }`}
+          title={isAdmin ? 'Вы вошли как администратор' : 'Вход для администратора'}
+        >
+          <span className="material-symbols-outlined">admin_panel_settings</span>
+        </button>
       </div>
     </header>
   );
 };
-
