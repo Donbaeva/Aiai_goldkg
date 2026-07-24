@@ -119,4 +119,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 rel="noreferrer"
                 className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f5] text-[#1b1b1d] flex items-center gap-2"
               >
-                <span className="material-symbols-outlined text-lg text-[#735c00]">open_in_new
+                                <span className="material-symbols-outlined text-lg text-[#735c00]">open_in_new</span>
+                Проверить сертификат
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+};
+
