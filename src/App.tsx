@@ -16,6 +16,7 @@ import {
   saveProductRemote,
   saveProductsRemote,
   saveCategoriesRemote,
+  deleteProductRemote,
   seedIfEmpty,
 } from './services/catalogStore';
 
@@ -136,6 +137,18 @@ export default function App() {
     saveProductRemote(updated).catch((e) => setConnectionError(String(e)));
   };
 
+  const handleDeleteProduct = (productId: string) => {
+    setProducts((prev) => {
+      const remaining = prev.filter((p) => p.id !== productId);
+      if (selectedProductId === productId) {
+        setSelectedProductId(remaining[0]?.id ?? '');
+        setViewMode('catalog');
+      }
+      return remaining;
+    });
+    deleteProductRemote(productId).catch((e) => setConnectionError(String(e)));
+  };
+
   const handleOpenNewProductModal = () => {
     setEditingProduct(null);
     setIsEditModalOpen(true);
@@ -220,6 +233,7 @@ export default function App() {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         onSave={handleSaveProduct}
+        onDelete={handleDeleteProduct}
         categories={categories}
         onAddCategory={handleAddCategory}
       />
