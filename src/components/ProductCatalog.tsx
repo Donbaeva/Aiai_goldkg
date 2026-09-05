@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { JewelryProduct, JewelryCategory } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useClientFavorites } from '../hooks/useClientFavorites';
+import { useClientFavorites } from '../contexts/ClientFavoritesContext';
 import { formatPrice } from '../utils/format';
 import { STATUS_OPTIONS, getStatusStyle } from '../utils/status';
 

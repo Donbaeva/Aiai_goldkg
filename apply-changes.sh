@@ -2,6 +2,7 @@
 set -e
 echo "Обновляю файлы..."
 if [ -f src/components/AuditLogModal.tsx ]; then rm src/components/AuditLogModal.tsx; echo "  removed: src/components/AuditLogModal.tsx"; fi
+if [ -f src/hooks/useClientFavorites.ts ]; then rm src/hooks/useClientFavorites.ts; echo "  removed: src/hooks/useClientFavorites.ts"; fi
 mkdir -p src
 cat > src/types.ts << 'AIAI_CLAUDE_EOF_MARKER'
 export type StockStatus = 'ПОД ЗАКАЗ' | 'В НАЛИЧИИ' | 'ПРОДАНО' | 'РЕЗЕРВИРОВАНО' | 'В ПУТИ';
@@ -40,13 +41,16 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import { AdminProvider } from './contexts/AdminContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { ClientFavoritesProvider } from './contexts/ClientFavoritesContext';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AdminProvider>
       <LanguageProvider>
-        <App />
+        <ClientFavoritesProvider>
+          <App />
+        </ClientFavoritesProvider>
       </LanguageProvider>
     </AdminProvider>
   </StrictMode>,
@@ -71,7 +75,7 @@ import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { useAdmin } from './contexts/AdminContext';
 import { useLanguage } from './contexts/LanguageContext';
-import { useClientFavorites } from './hooks/useClientFavorites';
+import { useClientFavorites } from './contexts/ClientFavoritesContext';
 import {
   subscribeToProducts,
   subscribeToCategories,
@@ -501,7 +505,7 @@ import { useAdmin } from '../contexts/AdminContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatPrice } from '../utils/format';
 import { getStatusStyle } from '../utils/status';
-import { useClientFavorites } from '../hooks/useClientFavorites';
+import { useClientFavorites } from '../contexts/ClientFavoritesContext';
 
 interface ProductSpecsProps {
   product: JewelryProduct;
@@ -688,7 +692,7 @@ import React, { useState } from 'react';
 import { JewelryProduct, JewelryCategory } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useClientFavorites } from '../hooks/useClientFavorites';
+import { useClientFavorites } from '../contexts/ClientFavoritesContext';
 import { formatPrice } from '../utils/format';
 import { STATUS_OPTIONS, getStatusStyle } from '../utils/status';
 
@@ -2047,9 +2051,9 @@ export function useLanguage() {
 
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/contexts/LanguageContext.tsx"
-mkdir -p src/hooks
-cat > src/hooks/useClientFavorites.ts << 'AIAI_CLAUDE_EOF_MARKER'
-import { useCallback, useEffect, useState } from 'react';
+mkdir -p src/contexts
+cat > src/contexts/ClientFavoritesContext.tsx << 'AIAI_CLAUDE_EOF_MARKER'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'aiaigold_client_favorites';
 
@@ -2071,9 +2075,25 @@ function writeStored(ids: string[]) {
   }
 }
 
+interface ClientFavoritesValue {
+  favoriteIds: string[];
+  isFavorited: (id: string) => boolean;
+  toggleFavorite: (id: string) => void;
+  clearFavorites: () => void;
+}
+
+const ClientFavoritesContext = createContext<ClientFavoritesValue>({
+  favoriteIds: [],
+  isFavorited: () => false,
+  toggleFavorite: () => {},
+  clearFavorites: () => {},
+});
+
 /** Lets customers (no login required) mark items they're interested in,
- * so they can send a single order request for everything at once. */
-export function useClientFavorites() {
+ * so they can send a single order request for everything at once.
+ * A single shared instance (via context) so the heart button on a card,
+ * the heart on the detail page, and the floating order bar all agree. */
+export const ClientFavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => readStored());
 
   useEffect(() => {
@@ -2099,11 +2119,19 @@ export function useClientFavorites() {
     writeStored([]);
   }, []);
 
-  return { favoriteIds, isFavorited, toggleFavorite, clearFavorites };
+  return (
+    <ClientFavoritesContext.Provider value={{ favoriteIds, isFavorited, toggleFavorite, clearFavorites }}>
+      {children}
+    </ClientFavoritesContext.Provider>
+  );
+};
+
+export function useClientFavorites() {
+  return useContext(ClientFavoritesContext);
 }
 
 AIAI_CLAUDE_EOF_MARKER
-echo "  ok: src/hooks/useClientFavorites.ts"
+echo "  ok: src/contexts/ClientFavoritesContext.tsx"
 mkdir -p src/i18n
 cat > src/i18n/translations.ts << 'AIAI_CLAUDE_EOF_MARKER'
 export type Lang = 'ru' | 'ky' | 'en';
@@ -2378,4 +2406,4 @@ export function isVideoSrc(src: string): boolean {
 
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/utils/format.ts"
-echo "Готово. Теперь: git add -A && git commit -m \"update\" && git push"
+echo "Готово. Теперь: git add -A && git commit -m \"fix favorites state\" && git push"

@@ -13,7 +13,7 @@ import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { useAdmin } from './contexts/AdminContext';
 import { useLanguage } from './contexts/LanguageContext';
-import { useClientFavorites } from './hooks/useClientFavorites';
+import { useClientFavorites } from './contexts/ClientFavoritesContext';
 import {
   subscribeToProducts,
   subscribeToCategories,

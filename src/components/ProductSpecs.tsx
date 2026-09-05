@@ -4,7 +4,7 @@ import { useAdmin } from '../contexts/AdminContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { formatPrice } from '../utils/format';
 import { getStatusStyle } from '../utils/status';
-import { useClientFavorites } from '../hooks/useClientFavorites';
+import { useClientFavorites } from '../contexts/ClientFavoritesContext';
 
 interface ProductSpecsProps {
   product: JewelryProduct;

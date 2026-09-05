@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 const STORAGE_KEY = 'aiaigold_client_favorites';
 
@@ -20,9 +20,25 @@ function writeStored(ids: string[]) {
   }
 }
 
+interface ClientFavoritesValue {
+  favoriteIds: string[];
+  isFavorited: (id: string) => boolean;
+  toggleFavorite: (id: string) => void;
+  clearFavorites: () => void;
+}
+
+const ClientFavoritesContext = createContext<ClientFavoritesValue>({
+  favoriteIds: [],
+  isFavorited: () => false,
+  toggleFavorite: () => {},
+  clearFavorites: () => {},
+});
+
 /** Lets customers (no login required) mark items they're interested in,
- * so they can send a single order request for everything at once. */
-export function useClientFavorites() {
+ * so they can send a single order request for everything at once.
+ * A single shared instance (via context) so the heart button on a card,
+ * the heart on the detail page, and the floating order bar all agree. */
+export const ClientFavoritesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [favoriteIds, setFavoriteIds] = useState<string[]>(() => readStored());
 
   useEffect(() => {
@@ -48,6 +64,14 @@ export function useClientFavorites() {
     writeStored([]);
   }, []);
 
-  return { favoriteIds, isFavorited, toggleFavorite, clearFavorites };
+  return (
+    <ClientFavoritesContext.Provider value={{ favoriteIds, isFavorited, toggleFavorite, clearFavorites }}>
+      {children}
+    </ClientFavoritesContext.Provider>
+  );
+};
+
+export function useClientFavorites() {
+  return useContext(ClientFavoritesContext);
 }
 
