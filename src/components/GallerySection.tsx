@@ -173,4 +173,4 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images, productN
     </section>
   );
 };
-ы
+

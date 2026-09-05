@@ -26,3 +26,4 @@ export function getStatusStyle(status: string): string {
       return 'bg-[#735c00]/10 text-[#735c00]';
   }
 }
+

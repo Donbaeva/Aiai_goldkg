@@ -283,3 +283,4 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     </div>
   );
 };
+

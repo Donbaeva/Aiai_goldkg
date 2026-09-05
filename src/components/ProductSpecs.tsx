@@ -175,3 +175,4 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
     </section>
   );
 };
+

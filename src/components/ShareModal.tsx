@@ -135,3 +135,4 @@ export const ShareModal: React.FC<ShareModalProps> = ({ product, isOpen, onClose
     </div>
   );
 };
+

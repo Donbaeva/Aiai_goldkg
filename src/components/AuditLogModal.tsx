@@ -17,13 +17,13 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({
   onAddAuditRecord,
 }) => {
   const { isAdmin } = useAdmin();
-  if (!isOpen) return null;
-
   const [isAdding, setIsAdding] = useState(false);
   const [inspector, setInspector] = useState('');
   const [location, setLocation] = useState('Главный сейф - Ячейка 01');
   const [status, setStatus] = useState<StockStatus>(product.status);
   const [note, setNote] = useState('');
+
+  if (!isOpen) return null;
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,3 +195,4 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({
     </div>
   );
 };
+

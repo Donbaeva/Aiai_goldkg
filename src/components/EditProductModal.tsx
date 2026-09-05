@@ -545,3 +545,4 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
     </div>
   );
 };
+

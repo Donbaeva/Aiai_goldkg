@@ -11,3 +11,4 @@ export function formatPrice(price: number, currency?: Currency): string {
 export function isVideoSrc(src: string): boolean {
   return src.startsWith('data:video') || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(src);
 }
+

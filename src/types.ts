@@ -35,3 +35,4 @@ export interface JewelryProduct {
 }
 
 export type ViewMode = 'detail' | 'catalog' | 'analytics';
+
