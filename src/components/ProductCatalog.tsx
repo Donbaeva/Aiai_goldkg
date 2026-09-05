@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { JewelryProduct, JewelryCategory } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useClientFavorites } from '../hooks/useClientFavorites';
 import { formatPrice } from '../utils/format';
 import { STATUS_OPTIONS, getStatusStyle } from '../utils/status';
 
@@ -22,6 +24,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   onOpenCategoryManager,
 }) => {
   const { isAdmin } = useAdmin();
+  const { t, statusLabel } = useLanguage();
+  const { isFavorited, toggleFavorite: toggleClientFavorite } = useClientFavorites();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Все');
   const [selectedStatus, setSelectedStatus] = useState<string>('Все');
@@ -57,13 +61,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#f0edef] to-white p-6 rounded-3xl border border-[#d0c5af]/30 shadow-sm">
         <div>
           <span className="text-xs font-semibold uppercase tracking-widest text-[#735c00] bg-[#735c00]/10 px-3 py-1 rounded-full">
-            Инвентарь AiAi Gold
+            {t('catalogBadge')}
           </span>
           <h1 className="text-2xl md:text-3xl font-bold text-[#1b1b1d] mt-2">
-            Каталог ювелирных изделий и драгоценностей
+            {t('catalogTitle')}
           </h1>
           <p className="text-sm text-[#4d4635] mt-1">
-            Управление, инспекция и учет изделий из золота и драгоценных камней.
+            {t('catalogSubtitle')}
           </p>
         </div>
 
@@ -73,7 +77,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             className="bg-[#735c00] text-white px-5 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#574500] transition-all shadow-md shadow-[#735c00]/20 active:scale-95 cursor-pointer"
           >
             <span className="material-symbols-outlined text-xl">add</span>
-            Добавить украшение
+            {t('addProduct')}
           </button>
         )}
       </div>
@@ -89,7 +93,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск по артикулу (AU-782), названию, пробе золота, сертификату..."
+            placeholder={t('searchPlaceholder')}
             className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl border border-[#d0c5af]/50 text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] shadow-sm"
           />
           {searchQuery && (
@@ -111,7 +115,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           >
             {statuses.map((st) => (
               <option key={st} value={st}>
-                Статус: {st}
+                {t('statusPrefix')}: {st === 'Все' ? t('all') : statusLabel(st)}
               </option>
             ))}
           </select>
@@ -121,10 +125,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             onChange={(e) => setSortBy(e.target.value as any)}
             className="px-3 py-3 bg-white border border-[#d0c5af]/50 rounded-2xl text-xs md:text-sm font-semibold text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] shadow-sm"
           >
-            <option value="price-desc">Сначала дорогие</option>
-            <option value="price-asc">Сначала недорогие</option>
-            <option value="weight">По весу</option>
-            <option value="name">По названию (А-Я)</option>
+            <option value="price-desc">{t('sortPriceDesc')}</option>
+            <option value="price-asc">{t('sortPriceAsc')}</option>
+            <option value="weight">{t('sortWeight')}</option>
+            <option value="name">{t('sortName')}</option>
           </select>
         </div>
       </div>
@@ -141,7 +145,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 : 'bg-white text-[#4d4635] border border-[#d0c5af]/40 hover:bg-[#f6f3f5]'
             }`}
           >
-            {cat}
+            {cat === 'Все' ? t('all') : cat}
           </button>
         ))}
 
@@ -152,7 +156,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             title="Настройка списка категорий"
           >
             <span className="material-symbols-outlined text-base">settings</span>
-            <span>Категории</span>
+            <span>{t('categoriesManage')}</span>
           </button>
         )}
       </div>
@@ -163,9 +167,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <div className="w-16 h-16 bg-[#f0edef] rounded-full flex items-center justify-center mx-auto text-[#735c00]">
             <span className="material-symbols-outlined text-3xl">search_off</span>
           </div>
-          <h3 className="text-lg font-bold text-[#1b1b1d]">Ничего не найдено</h3>
+          <h3 className="text-lg font-bold text-[#1b1b1d]">{t('noResultsTitle')}</h3>
           <p className="text-sm text-[#4d4635] max-w-md mx-auto">
-            Попробуйте изменить поисковый запрос или сбросить фильтры категорий.
+            {t('noResultsSubtitle')}
           </p>
           <button
             onClick={() => {
@@ -175,13 +179,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             }}
             className="px-4 py-2 bg-[#735c00] text-white rounded-xl text-xs font-semibold"
           >
-            Сбросить фильтры
+            {t('resetFilters')}
           </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.map((product) => {
             const formattedPrice = formatPrice(product.price, product.currency);
+            const clientFavorited = isFavorited(product.id);
 
             return (
               <div
@@ -204,11 +209,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         product.status
                       )}`}
                     >
-                      {product.status}
+                      {statusLabel(product.status)}
                     </span>
 
-                    {/* Кнопка Избранного */}
-                    {isAdmin && (
+                    {/* Кнопка Избранного — своя для админа и для клиента */}
+                    {isAdmin ? (
                       <button
                         onClick={(e) => onToggleFavorite(product.id, e)}
                         className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all ${
@@ -221,6 +226,26 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         <span
                           className="material-symbols-outlined text-lg block"
                           style={{ fontVariationSettings: product.isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+                        >
+                          favorite
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleClientFavorite(product.id);
+                        }}
+                        className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all ${
+                          clientFavorited
+                            ? 'bg-white text-[#ba1a1a] shadow-md'
+                            : 'bg-black/30 text-white hover:bg-white hover:text-[#1b1b1d]'
+                        }`}
+                        title={clientFavorited ? t('removeFromFavorites') : t('addToFavorites')}
+                      >
+                        <span
+                          className="material-symbols-outlined text-lg block"
+                          style={{ fontVariationSettings: clientFavorited ? "'FILL' 1" : "'FILL' 0" }}
                         >
                           favorite
                         </span>
@@ -249,13 +274,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div className="grid grid-cols-2 gap-2 text-xs bg-[#f6f3f5] p-2.5 rounded-xl text-[#4d4635]">
                         {product.goldPurity && (
                           <div>
-                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">Металл</span>
+                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">{t('cardMetal')}</span>
                             <span className="font-semibold text-[#1b1b1d]">{product.goldPurity}</span>
                           </div>
                         )}
                         {product.stoneCarats && (
                           <div>
-                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">Вставка</span>
+                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">{t('cardInsert')}</span>
                             <span className="font-semibold text-[#1b1b1d]">{product.stoneCarats}</span>
                           </div>
                         )}
@@ -271,7 +296,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     {product.certification}
                   </span>
                   <span className="font-semibold text-[#735c00] group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
-                    Подробнее
+                    {t('cardMore')}
                     <span className="material-symbols-outlined text-sm">chevron_right</span>
                   </span>
                 </div>

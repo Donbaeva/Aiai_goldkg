@@ -94,12 +94,10 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
     ringSize: product?.ringSize || '16.5 (Изменяемый)',
     certification: product?.certification || 'GIA #100200',
     certificationUrl: product?.certificationUrl || 'https://www.gia.edu',
-    lastAudit: product?.lastAudit || new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }),
     internalNotes: product?.internalNotes || '',
     images: product?.images?.length ? [...product.images] : ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=1200&q=80'],
     isFavorite: product?.isFavorite || false,
     createdAt: product?.createdAt || new Date().toISOString(),
-    auditHistory: product?.auditHistory || [],
   });
 
   const [newCategoryInput, setNewCategoryInput] = useState('');

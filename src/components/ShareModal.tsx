@@ -30,7 +30,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({ product, isOpen, onClose
   if (product.stoneCarats) specLines.push(`Характеристика вставок: ${product.stoneCarats}`);
   if (product.ringSize) specLines.push(`Размер/Длина: ${product.ringSize}`);
   if (product.certification) specLines.push(`Сертификат: ${product.certification}`);
-  if (product.lastAudit) specLines.push(`Последний аудит: ${product.lastAudit}`);
   specLines.push(``);
   if (product.internalNotes) specLines.push(`Подробнее: ${product.internalNotes}`);
   specLines.push(`-----------------------------------------`, `AiAi Gold`);

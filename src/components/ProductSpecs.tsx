@@ -1,21 +1,20 @@
 import React, { useState } from 'react';
 import { JewelryProduct } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { formatPrice } from '../utils/format';
 import { getStatusStyle } from '../utils/status';
+import { useClientFavorites } from '../hooks/useClientFavorites';
 
 interface ProductSpecsProps {
   product: JewelryProduct;
   onUpdateNotes: (newNotes: string) => void;
-  onOpenAuditHistory: () => void;
 }
 
-export const ProductSpecs: React.FC<ProductSpecsProps> = ({
-  product,
-  onUpdateNotes,
-  onOpenAuditHistory,
-}) => {
+export const ProductSpecs: React.FC<ProductSpecsProps> = ({ product, onUpdateNotes }) => {
   const { isAdmin } = useAdmin();
+  const { t, statusLabel } = useLanguage();
+  const { isFavorited, toggleFavorite } = useClientFavorites();
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesText, setNotesText] = useState(product.internalNotes);
 
@@ -25,6 +24,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
   };
 
   const formattedPrice = formatPrice(product.price, product.currency);
+  const favorited = isFavorited(product.id);
 
   return (
     <section className="lg:col-span-5 px-4 md:px-0 flex flex-col gap-8">
@@ -32,15 +32,35 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
       <div>
         <div className="flex justify-between items-center mb-2">
           <span className={`text-[12px] font-semibold tracking-widest uppercase px-3 py-1 rounded-full border ${getStatusStyle(product.status)}`}>
-            {product.status}
+            {statusLabel(product.status)}
           </span>
           <span className="text-[12px] font-semibold text-[#4d4635] uppercase tracking-wider">
-            Артикул: {product.sku}
+            {t('article')}: {product.sku}
           </span>
         </div>
-        <h2 className="text-3xl md:text-4xl lg:text-[48px] lg:leading-[56px] font-semibold text-[#1b1b1d] tracking-tight mb-1">
-          {product.name}
-        </h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-3xl md:text-4xl lg:text-[48px] lg:leading-[56px] font-semibold text-[#1b1b1d] tracking-tight mb-1">
+            {product.name}
+          </h2>
+          {!isAdmin && (
+            <button
+              onClick={() => toggleFavorite(product.id)}
+              className={`flex-shrink-0 mt-2 p-2.5 rounded-full border transition-all active:scale-95 ${
+                favorited
+                  ? 'bg-[#ffdad6]/40 text-[#ba1a1a] border-[#ba1a1a]/30'
+                  : 'bg-white text-[#4d4635] border-[#d0c5af] hover:bg-[#f6f3f5]'
+              }`}
+              title={favorited ? t('removeFromFavorites') : t('addToFavorites')}
+            >
+              <span
+                className="material-symbols-outlined text-xl block"
+                style={{ fontVariationSettings: favorited ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                favorite
+              </span>
+            </button>
+          )}
+        </div>
         <p className="text-2xl md:text-3xl text-[#735c00] font-bold tracking-tight">
           {formattedPrice}
         </p>
@@ -51,7 +71,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
         {product.goldPurity && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
             <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-              Проба металл
+              {t('specGoldPurity')}
             </p>
             <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
               {product.goldPurity}
@@ -62,10 +82,10 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
         {!!product.weightGrams && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
             <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-              Вес изделия
+              {t('specWeight')}
             </p>
             <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
-              {product.weightGrams} Грамм
+              {product.weightGrams} {t('specGrams')}
             </p>
           </div>
         )}
@@ -73,7 +93,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
         {product.stoneCarats && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
             <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-              Караты вставки
+              {t('specStone')}
             </p>
             <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
               {product.stoneCarats}
@@ -86,13 +106,13 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
       <div className="flex flex-col gap-1">
         {product.ringSize && (
           <div className="flex justify-between items-center py-4 border-b border-[#d0c5af]/30">
-            <span className="text-base text-[#4d4635]">Размер</span>
+            <span className="text-base text-[#4d4635]">{t('specSize')}</span>
             <span className="text-base font-medium text-[#1b1b1d]">{product.ringSize}</span>
           </div>
         )}
 
         <div className="flex justify-between items-center py-4 border-b border-[#d0c5af]/30">
-          <span className="text-base text-[#4d4635]">Сертификат</span>
+          <span className="text-base text-[#4d4635]">{t('specCertificate')}</span>
           <a
             href={product.certificationUrl || 'https://www.gia.edu'}
             target="_blank"
@@ -105,19 +125,6 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
             </span>
           </a>
         </div>
-
-        <div className="flex justify-between items-center py-4 border-b border-[#d0c5af]/30">
-          <span className="text-base text-[#4d4635]">Последний аудит</span>
-          <button
-            onClick={onOpenAuditHistory}
-            className="text-base font-medium text-[#1b1b1d] hover:text-[#735c00] flex items-center gap-1 group"
-          >
-            {product.lastAudit}
-            <span className="material-symbols-outlined text-sm text-[#4d4635] group-hover:text-[#735c00]">
-              history
-            </span>
-          </button>
-        </div>
       </div>
 
       {/* Блок «Подробнее» — виден клиентам */}
@@ -126,7 +133,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-xl">notes</span>
             <h3 className="text-[12px] font-semibold uppercase tracking-wider">
-              Подробнее
+              {t('detailsHeading')}
             </h3>
           </div>
           {!isEditingNotes && isAdmin && (
@@ -168,7 +175,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
           </div>
         ) : (
           <p className="text-sm text-[#4d4635] leading-relaxed">
-            {product.internalNotes || 'Подробное описание пока не добавлено.'}
+            {product.internalNotes || t('detailsEmpty')}
           </p>
         )}
       </div>

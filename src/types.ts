@@ -2,15 +2,6 @@ export type StockStatus = 'ПОД ЗАКАЗ' | 'В НАЛИЧИИ' | 'ПРОД�
 export type Currency = 'KGS' | 'USD';
 export type JewelryCategory = string;
 
-export interface AuditRecord {
-  id: string;
-  date: string;
-  inspector: string;
-  location: string;
-  status: StockStatus;
-  note: string;
-}
-
 export interface JewelryProduct {
   id: string;
   sku: string;
@@ -25,13 +16,11 @@ export interface JewelryProduct {
   ringSize?: string;
   certification: string;
   certificationUrl?: string;
-  lastAudit: string;
   internalNotes: string;
   /** Photo and video data URLs / links, shown to clients in the gallery. */
   images: string[];
   isFavorite: boolean;
   createdAt: string;
-  auditHistory: AuditRecord[];
 }
 
 export type ViewMode = 'detail' | 'catalog' | 'analytics';

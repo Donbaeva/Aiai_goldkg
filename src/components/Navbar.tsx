@@ -1,12 +1,13 @@
 import React from 'react';
 import { ViewMode, JewelryProduct } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
+import { LANGUAGES } from '../i18n/translations';
 
 interface NavbarProps {
   currentView: ViewMode;
   onViewChange: (view: ViewMode) => void;
   selectedProduct: JewelryProduct | null;
   onOpenShare: () => void;
-  onOpenAuditLog: () => void;
   productCount: number;
   isAdmin: boolean;
   onOpenAdmin: () => void;
@@ -17,12 +18,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   onViewChange,
   selectedProduct,
   onOpenShare,
-  onOpenAuditLog,
   productCount,
   isAdmin,
   onOpenAdmin,
 }) => {
   const [showMoreMenu, setShowMoreMenu] = React.useState(false);
+  const { lang, setLang, t } = useLanguage();
 
   return (
     <header className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 md:px-8 h-16 bg-[#fcf8fb] border-b border-[#d0c5af]/30 glass-effect">
@@ -31,7 +32,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => onViewChange('catalog')}
             className="p-2 hover:bg-[#eae7ea] rounded-full transition-colors text-[#735c00] active:scale-95 flex items-center justify-center"
-            title="Вернуться в каталог"
+            title={t('backToCatalog')}
           >
             <span className="material-symbols-outlined text-2xl">arrow_back</span>
           </button>
@@ -40,9 +41,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="material-symbols-outlined text-2xl">diamond</span>
           </div>
         )}
-        
+
         <div>
-          <button 
+          <button
             onClick={() => onViewChange('catalog')}
             className="font-semibold text-lg md:text-xl text-[#735c00] hover:opacity-80 transition-opacity flex items-center gap-2"
           >
@@ -52,6 +53,22 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div className="flex items-center gap-1 md:gap-2">
+        <div className="flex items-center bg-[#f0edef] p-1 rounded-xl text-[11px] font-bold mr-1">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setLang(l.code)}
+              className={`px-2 py-1.5 rounded-lg transition-all ${
+                lang === l.code
+                  ? 'bg-white text-[#735c00] shadow-sm'
+                  : 'text-[#4d4635] hover:text-[#1b1b1d]'
+              }`}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+
         <nav className="flex items-center bg-[#f0edef] p-1 rounded-xl text-xs md:text-sm font-medium mr-2">
           <button
             onClick={() => onViewChange('catalog')}
@@ -61,7 +78,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-[#4d4635] hover:text-[#1b1b1d]'
             }`}
           >
-            Каталог ({productCount})
+            {t('catalogTab')} ({productCount})
           </button>
           <button
             onClick={() => onViewChange('detail')}
@@ -71,14 +88,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-[#4d4635] hover:text-[#1b1b1d]'
             }`}
           >
-            Характеристики
+            {t('detailsTab')}
           </button>
         </nav>
 
         <button
           onClick={onOpenShare}
           className="p-2 hover:bg-[#eae7ea] rounded-full transition-all text-[#735c00] active:scale-95"
-          title="Поделиться спецификацией"
+          title={t('share')}
         >
           <span className="material-symbols-outlined">share</span>
         </button>
@@ -87,32 +104,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
             className="p-2 hover:bg-[#eae7ea] rounded-full transition-all text-[#735c00] active:scale-95"
-            title="Дополнительные опции"
+            title={t('moreOptions')}
           >
             <span className="material-symbols-outlined">more_vert</span>
           </button>
 
           {showMoreMenu && selectedProduct && (
-            <div 
+            <div
               className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-[#d0c5af]/40 py-2 z-50 text-sm"
               onClick={() => setShowMoreMenu(false)}
             >
               <div className="px-4 py-2 border-b border-[#f0edef] text-xs font-semibold uppercase tracking-wider text-[#4d4635]">
-                Действия ({selectedProduct.sku})
+                {t('actionsFor')} ({selectedProduct.sku})
               </div>
-              <button
-                onClick={onOpenAuditLog}
-                className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f5] text-[#1b1b1d] flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-lg text-[#735c00]">verified</span>
-                История аудита ({selectedProduct.auditHistory.length})
-              </button>
               <button
                 onClick={onOpenShare}
                 className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f5] text-[#1b1b1d] flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-lg text-[#735c00]">picture_as_pdf</span>
-                Экспорт VIP-паспорта
+                {t('exportPassport')}
               </button>
               <a
                 href={selectedProduct.certificationUrl || 'https://www.gia.edu'}
@@ -121,7 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f5] text-[#1b1b1d] flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-lg text-[#735c00]">open_in_new</span>
-                Проверить сертификат
+                {t('checkCertificate')}
               </a>
             </div>
           )}
@@ -134,7 +144,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               ? 'bg-[#735c00] text-white hover:bg-[#574500]'
               : 'text-[#735c00] hover:bg-[#eae7ea]'
           }`}
-          title={isAdmin ? 'Вы вошли как администратор' : 'Вход для администратора'}
+          title={isAdmin ? t('adminLoggedIn') : t('adminLogin')}
         >
           <span className="material-symbols-outlined">admin_panel_settings</span>
         </button>

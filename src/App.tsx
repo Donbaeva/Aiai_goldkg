@@ -1,17 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { JewelryProduct, ViewMode, AuditRecord } from './types';
+import { JewelryProduct, ViewMode } from './types';
 import { INITIAL_PRODUCTS } from './data/mockProducts';
 import { Navbar } from './components/Navbar';
 import { GallerySection } from './components/GallerySection';
 import { ProductSpecs } from './components/ProductSpecs';
 import { ActionBar } from './components/ActionBar';
+import { OrderBar } from './components/OrderBar';
 import { ProductCatalog } from './components/ProductCatalog';
 import { EditProductModal } from './components/EditProductModal';
 import { ShareModal } from './components/ShareModal';
-import { AuditLogModal } from './components/AuditLogModal';
 import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { useAdmin } from './contexts/AdminContext';
+import { useLanguage } from './contexts/LanguageContext';
+import { useClientFavorites } from './hooks/useClientFavorites';
 import {
   subscribeToProducts,
   subscribeToCategories,
@@ -26,6 +28,8 @@ const DEFAULT_CATEGORIES = ['Кольца', 'Колье и Цепи', 'Серь�
 
 export default function App() {
   const { isAdmin, adminEmail } = useAdmin();
+  const { favoriteIds, clearFavorites } = useClientFavorites();
+  const { t } = useLanguage();
   const [products, setProducts] = useState<JewelryProduct[]>([]);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +42,6 @@ export default function App() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<JewelryProduct | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [isAuditModalOpen, setIsAuditModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
 
@@ -135,18 +138,6 @@ export default function App() {
     setViewMode('detail');
   };
 
-  const handleAddAuditRecord = (record: AuditRecord) => {
-    if (!isAdmin || !selectedProduct) return;
-    const updated = {
-      ...selectedProduct,
-      lastAudit: record.date,
-      status: record.status,
-      auditHistory: [record, ...selectedProduct.auditHistory],
-    };
-    setProducts((prev) => prev.map((p) => (p.id === selectedProduct.id ? updated : p)));
-    saveProductRemote(updated).catch((e) => setConnectionError(String(e)));
-  };
-
   const handleDeleteProduct = (productId: string) => {
     if (!isAdmin) return;
     setProducts((prev) => {
@@ -175,7 +166,7 @@ export default function App() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#fcf8fb] flex items-center justify-center">
-        <p className="text-[#1b1b1d]/60">Загрузка каталога…</p>
+        <p className="text-[#1b1b1d]/60">{t('loading')}</p>
       </div>
     );
   }
@@ -193,7 +184,6 @@ export default function App() {
         onViewChange={setViewMode}
         selectedProduct={selectedProduct ?? null}
         onOpenShare={() => setIsShareModalOpen(true)}
-        onOpenAuditLog={() => setIsAuditModalOpen(true)}
         productCount={products.length}
         isAdmin={isAdmin}
         onOpenAdmin={() => setIsAdminModalOpen(true)}
@@ -214,7 +204,6 @@ export default function App() {
               <ProductSpecs
                 product={selectedProduct}
                 onUpdateNotes={handleUpdateNotes}
-                onOpenAuditHistory={() => setIsAuditModalOpen(true)}
               />
             </div>
           </div>
@@ -242,6 +231,11 @@ export default function App() {
         />
       )}
 
+      {/* Floating order bar for customers with favorited items */}
+      {!isAdmin && (
+        <OrderBar products={products} favoriteIds={favoriteIds} onClearFavorites={clearFavorites} />
+      )}
+
       {/* Modals */}
       <EditProductModal
         product={editingProduct}
@@ -258,15 +252,6 @@ export default function App() {
           product={selectedProduct}
           isOpen={isShareModalOpen}
           onClose={() => setIsShareModalOpen(false)}
-        />
-      )}
-
-      {selectedProduct && (
-        <AuditLogModal
-          product={selectedProduct}
-          isOpen={isAuditModalOpen}
-          onClose={() => setIsAuditModalOpen(false)}
-          onAddAuditRecord={handleAddAuditRecord}
         />
       )}
 
@@ -288,3 +273,4 @@ export default function App() {
     </div>
   );
 }
+
