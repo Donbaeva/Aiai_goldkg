@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { JewelryProduct, AuditRecord, StockStatus } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
+import { STATUS_OPTIONS } from '../utils/status';
 
 interface AuditLogModalProps {
   product: JewelryProduct;
@@ -124,10 +125,9 @@ export const AuditLogModal: React.FC<AuditLogModalProps> = ({
                   onChange={(e) => setStatus(e.target.value as StockStatus)}
                   className="w-full px-3 py-1.5 rounded-xl border border-[#d0c5af] text-xs bg-white"
                 >
-                  <option value="В НАЛИЧИИ">В НАЛИЧИИ</option>
-                  <option value="ЗАБРОНИРОВАНО">ЗАБРОНИРОВАНО</option>
-                  <option value="ПРОДАНО">ПРОДАНО</option>
-                  <option value="НА АУДИТЕ">НА АУДИТЕ</option>
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
               </div>
 

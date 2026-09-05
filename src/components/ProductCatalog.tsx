@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { JewelryProduct, JewelryCategory, StockStatus } from '../types';
+import { JewelryProduct, JewelryCategory } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
+import { formatPrice } from '../utils/format';
+import { STATUS_OPTIONS, getStatusStyle } from '../utils/status';
 
 interface ProductCatalogProps {
   products: JewelryProduct[];
@@ -26,7 +28,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [sortBy, setSortBy] = useState<'price-desc' | 'price-asc' | 'name' | 'weight'>('price-desc');
 
   const allCategoryTabs = ['Все', ...categories];
-  const statuses: string[] = ['Все', 'В НАЛИЧИИ', 'ЗАБРОНИРОВАНО', 'ПРОДАНО', 'НА АУДИТЕ'];
+  const statuses: string[] = ['Все', ...STATUS_OPTIONS];
 
   const filteredProducts = products
     .filter((p) => {
@@ -48,21 +50,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       if (sortBy === 'weight') return b.weightGrams - a.weightGrams;
       return 0;
     });
-
-  const getStatusStyle = (status: StockStatus) => {
-    switch (status) {
-      case 'В НАЛИЧИИ':
-        return 'bg-[#735c00]/10 text-[#735c00] border-[#735c00]/20';
-      case 'ЗАБРОНИРОВАНО':
-        return 'bg-[#d4af37]/20 text-[#554300] border-[#d4af37]/40';
-      case 'ПРОДАНО':
-        return 'bg-[#5d5f5b]/15 text-[#5d5f5b] border-[#5d5f5b]/30';
-      case 'НА АУДИТЕ':
-        return 'bg-[#ba1a1a]/10 text-[#ba1a1a] border-[#ba1a1a]/20';
-      default:
-        return 'bg-[#735c00]/10 text-[#735c00]';
-    }
-  };
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 md:px-8 py-8 space-y-6">
@@ -194,10 +181,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.map((product) => {
-            const formattedPrice = new Intl.NumberFormat('ru-RU', {
-              style: 'currency',
-              currency: 'USD',
-            }).format(product.price);
+            const formattedPrice = formatPrice(product.price, product.currency);
 
             return (
               <div
@@ -261,16 +245,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       {formattedPrice}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 text-xs bg-[#f6f3f5] p-2.5 rounded-xl text-[#4d4635]">
-                      <div>
-                        <span className="block text-[10px] uppercase font-medium text-[#7f7663]">Металл</span>
-                        <span className="font-semibold text-[#1b1b1d]">{product.goldPurity}</span>
+                    {(product.goldPurity || product.stoneCarats) && (
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-[#f6f3f5] p-2.5 rounded-xl text-[#4d4635]">
+                        {product.goldPurity && (
+                          <div>
+                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">Металл</span>
+                            <span className="font-semibold text-[#1b1b1d]">{product.goldPurity}</span>
+                          </div>
+                        )}
+                        {product.stoneCarats && (
+                          <div>
+                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">Вставка</span>
+                            <span className="font-semibold text-[#1b1b1d]">{product.stoneCarats}</span>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <span className="block text-[10px] uppercase font-medium text-[#7f7663]">Вставка</span>
-                        <span className="font-semibold text-[#1b1b1d]">{product.stoneCarats}</span>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
 

@@ -1,4 +1,5 @@
-export type StockStatus = 'В НАЛИЧИИ' | 'ЗАБРОНИРОВАНО' | 'ПРОДАНО' | 'НА АУДИТЕ';
+export type StockStatus = 'ПОД ЗАКАЗ' | 'В НАЛИЧИИ' | 'ПРОДАНО' | 'РЕЗЕРВИРОВАНО' | 'В ПУТИ';
+export type Currency = 'KGS' | 'USD';
 export type JewelryCategory = string;
 
 export interface AuditRecord {
@@ -16,16 +17,17 @@ export interface JewelryProduct {
   name: string;
   category: JewelryCategory;
   price: number;
+  currency: Currency;
   status: StockStatus;
   goldPurity: string;
   weightGrams: number;
   stoneCarats: string;
-  clarity: string;
   ringSize?: string;
   certification: string;
   certificationUrl?: string;
   lastAudit: string;
   internalNotes: string;
+  /** Photo and video data URLs / links, shown to clients in the gallery. */
   images: string[];
   isFavorite: boolean;
   createdAt: string;

@@ -1,5 +1,24 @@
 import React, { useState, useRef } from 'react';
-import { JewelryProduct, StockStatus, JewelryCategory } from '../types';
+import { JewelryProduct, StockStatus, Currency, JewelryCategory } from '../types';
+import { STATUS_OPTIONS } from '../utils/status';
+import { isVideoSrc } from '../utils/format';
+
+/** Reads a picked video as a data: URL. Kept small on purpose: the whole
+ * product record (photos + video) has to fit in Firestore's 1MB-per-document
+ * limit, so a long or high-quality video simply won't fit. */
+const MAX_VIDEO_BYTES = 450_000;
+function readVideoFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (file.size > MAX_VIDEO_BYTES) {
+      reject(new Error('Видео слишком большое для карточки изделия. Снимите короче (2-3 секунды) или в меньшем качестве и попробуйте снова.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Не удалось загрузить видео'));
+    reader.readAsDataURL(file);
+  });
+}
 
 /** Shrinks a picked photo to a reasonable size and compresses it to JPEG,
  * so a whole product record (with several photos) stays well under
@@ -67,11 +86,11 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
     name: product?.name || '',
     category: product?.category || categories[0] || 'Кольца',
     price: product?.price || 1000,
+    currency: product?.currency || 'KGS',
     status: product?.status || 'В НАЛИЧИИ',
     goldPurity: product?.goldPurity || '18K Желтое золото',
     weightGrams: product?.weightGrams || 5.0,
     stoneCarats: product?.stoneCarats || '1.00 CTW',
-    clarity: product?.clarity || 'VVS1 / Цвет D',
     ringSize: product?.ringSize || '16.5 (Изменяемый)',
     certification: product?.certification || 'GIA #100200',
     certificationUrl: product?.certificationUrl || 'https://www.gia.edu',
@@ -85,10 +104,12 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
 
   const [newCategoryInput, setNewCategoryInput] = useState('');
   const [showAddCategoryInput, setShowAddCategoryInput] = useState(false);
-  const [newImageUrl, setNewImageUrl] = useState('');
   const [isProcessingPhotos, setIsProcessingPhotos] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  const [isProcessingVideo, setIsProcessingVideo] = useState(false);
+  const [videoError, setVideoError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (field: keyof JewelryProduct, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -103,16 +124,6 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
     handleChange('category', trimmed);
     setNewCategoryInput('');
     setShowAddCategoryInput(false);
-  };
-
-  const handleAddImage = () => {
-    if (newImageUrl.trim()) {
-      setFormData((prev) => ({
-        ...prev,
-        images: [...(prev.images || []), newImageUrl.trim()],
-      }));
-      setNewImageUrl('');
-    }
   };
 
   const handleRemoveImage = (index: number) => {
@@ -145,6 +156,25 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
     } finally {
       setIsProcessingPhotos(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleVideoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setVideoError(null);
+    setIsProcessingVideo(true);
+    try {
+      const dataUrl = await readVideoFile(file);
+      setFormData((prev) => ({
+        ...prev,
+        images: [...(prev.images || []), dataUrl],
+      }));
+    } catch (err: any) {
+      setVideoError(err?.message || 'Не удалось загрузить видео. Попробуйте ещё раз.');
+    } finally {
+      setIsProcessingVideo(false);
+      if (videoInputRef.current) videoInputRef.current.value = '';
     }
   };
 
@@ -181,7 +211,7 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
                 {isNew ? 'Добавить ювелирное изделие' : `Редактирование характеристик`}
               </h2>
               <p className="text-xs text-[#4d4635]">
-                {isNew ? 'Создание записи в реестре AiAi Gold Vault' : `Артикул: ${formData.sku}`}
+                {isNew ? 'Новое изделие в каталоге AiAi Gold' : `Артикул: ${formData.sku}`}
               </p>
             </div>
           </div>
@@ -279,32 +309,41 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-[#4d4635] mb-1">
-                  Цена ($ USD) *
+                  Цена *
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  required
-                  value={formData.price || ''}
-                  onChange={(e) => handleChange('price', parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#d0c5af] text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00]"
-                  placeholder="12450.00"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={formData.price || ''}
+                    onChange={(e) => handleChange('price', parseFloat(e.target.value) || 0)}
+                    className="flex-1 min-w-0 px-3 py-2 rounded-xl border border-[#d0c5af] text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00]"
+                    placeholder="12450"
+                  />
+                  <select
+                    value={formData.currency || 'KGS'}
+                    onChange={(e) => handleChange('currency', e.target.value as Currency)}
+                    className="px-2 py-2 rounded-xl border border-[#d0c5af] text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] bg-white font-medium"
+                  >
+                    <option value="KGS">сом</option>
+                    <option value="USD">$</option>
+                  </select>
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-[#4d4635] mb-1">
-                  Статус в хранилище
+                  Статус
                 </label>
                 <select
                   value={formData.status || 'В НАЛИЧИИ'}
                   onChange={(e) => handleChange('status', e.target.value as StockStatus)}
                   className="w-full px-3 py-2 rounded-xl border border-[#d0c5af] text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] bg-white font-medium"
                 >
-                  <option value="В НАЛИЧИИ">В НАЛИЧИИ</option>
-                  <option value="ЗАБРОНИРОВАНО">ЗАБРОНИРОВАНО</option>
-                  <option value="ПРОДАНО">ПРОДАНО</option>
-                  <option value="НА АУДИТЕ">НА АУДИТЕ</option>
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -359,19 +398,6 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-[#4d4635] mb-1">
-                  Чистота / Цвет
-                </label>
-                <input
-                  type="text"
-                  value={formData.clarity || ''}
-                  onChange={(e) => handleChange('clarity', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#d0c5af] text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00]"
-                  placeholder="VVS1 / Цвет D"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#4d4635] mb-1">
                   Размер / Длина
                 </label>
                 <input
@@ -398,24 +424,24 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
             </div>
           </div>
 
-          {/* Внутренние заметки */}
+          {/* Подробнее — видно клиентам */}
           <div>
             <label className="block text-xs font-semibold text-[#4d4635] mb-1">
-              Внутренние заметки хранилища
+              Подробнее (отображается клиентам)
             </label>
             <textarea
               rows={3}
               value={formData.internalNotes || ''}
               onChange={(e) => handleChange('internalNotes', e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#d0c5af] text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00]"
-              placeholder="Служебная информация по шоуруму, бронзированию или полировке..."
+              placeholder="Опишите изделие подробнее для клиентов..."
             />
           </div>
 
-          {/* Галерея изображений */}
+          {/* Фото и видео */}
           <div className="space-y-2">
             <label className="block text-xs font-semibold text-[#4d4635]">
-              Фото украшения
+              Фото и видео украшения
             </label>
 
             <input
@@ -437,35 +463,45 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
             </button>
             {photoError && <p className="text-xs text-red-600">{photoError}</p>}
 
-            <p className="text-[11px] text-[#4d4635]/70 pt-1">
-              Или вставьте ссылку на фото:
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              onChange={handleVideoSelected}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => videoInputRef.current?.click()}
+              disabled={isProcessingVideo}
+              className="w-full px-4 py-2.5 bg-white hover:bg-[#f6f3f5] disabled:opacity-60 text-[#735c00] border border-[#735c00]/40 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+            >
+              <span className="material-symbols-outlined text-lg">videocam</span>
+              {isProcessingVideo ? 'Обработка видео…' : 'Выбрать видео с телефона'}
+            </button>
+            {videoError && <p className="text-xs text-red-600">{videoError}</p>}
+            <p className="text-[11px] text-[#4d4635]/70">
+              Видео должно быть очень коротким (2-3 секунды) — иначе не поместится в карточку изделия.
             </p>
-            <div className="flex gap-2">
-              <input
-                type="url"
-                value={newImageUrl}
-                onChange={(e) => setNewImageUrl(e.target.value)}
-                className="flex-1 px-3 py-2 rounded-xl border border-[#d0c5af] text-xs text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00]"
-                placeholder="https://images.unsplash.com/photo-..."
-              />
-              <button
-                type="button"
-                onClick={handleAddImage}
-                className="px-4 py-2 bg-[#f0edef] hover:bg-[#eae7ea] text-[#735c00] rounded-xl text-xs font-semibold"
-              >
-                Добавить
-              </button>
-            </div>
 
             <div className="grid grid-cols-4 gap-2 mt-2">
               {(formData.images || []).map((url, idx) => (
-                <div key={idx} className="relative group rounded-xl overflow-hidden h-20 border border-[#d0c5af]">
-                  <img src={url} alt="" className="w-full h-full object-cover" />
+                <div key={idx} className="relative group rounded-xl overflow-hidden h-20 border border-[#d0c5af] bg-black/5">
+                  {isVideoSrc(url) ? (
+                    <video src={url} className="w-full h-full object-cover" muted />
+                  ) : (
+                    <img src={url} alt="" className="w-full h-full object-cover" />
+                  )}
+                  {isVideoSrc(url) && (
+                    <span className="absolute bottom-1 left-1 bg-black/60 text-white rounded-full p-0.5 pointer-events-none">
+                      <span className="material-symbols-outlined text-xs block">play_arrow</span>
+                    </span>
+                  )}
                   <button
                     type="button"
                     onClick={() => handleRemoveImage(idx)}
                     className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-80 group-hover:opacity-100"
-                    title="Удалить фото"
+                    title="Удалить"
                   >
                     <span className="material-symbols-outlined text-xs">close</span>
                   </button>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { JewelryProduct } from '../types';
+import { formatPrice } from '../utils/format';
 
 interface ShareModalProps {
   product: JewelryProduct;
@@ -13,28 +14,28 @@ export const ShareModal: React.FC<ShareModalProps> = ({ product, isOpen, onClose
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
 
-  const formattedPrice = new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(product.price);
+  const formattedPrice = formatPrice(product.price, product.currency);
 
-  const specSummaryText = `👑 Спецификация ювелирного актива AiAi Gold
------------------------------------------
-Наименование: ${product.name}
-Артикул: ${product.sku}
-Статус: ${product.status}
-Стоимость: ${formattedPrice}
+  const specLines: string[] = [
+    `👑 Спецификация украшения AiAi Gold`,
+    `-----------------------------------------`,
+    `Наименование: ${product.name}`,
+    `Артикул: ${product.sku}`,
+    `Статус: ${product.status}`,
+    `Стоимость: ${formattedPrice}`,
+    ``,
+  ];
+  if (product.goldPurity) specLines.push(`Проба металла: ${product.goldPurity}`);
+  if (product.weightGrams) specLines.push(`Вес: ${product.weightGrams} г`);
+  if (product.stoneCarats) specLines.push(`Характеристика вставок: ${product.stoneCarats}`);
+  if (product.ringSize) specLines.push(`Размер/Длина: ${product.ringSize}`);
+  if (product.certification) specLines.push(`Сертификат: ${product.certification}`);
+  if (product.lastAudit) specLines.push(`Последний аудит: ${product.lastAudit}`);
+  specLines.push(``);
+  if (product.internalNotes) specLines.push(`Подробнее: ${product.internalNotes}`);
+  specLines.push(`-----------------------------------------`, `AiAi Gold`);
 
-Проба металла: ${product.goldPurity}
-Вес: ${product.weightGrams} г
-Характеристика вставок: ${product.stoneCarats} (${product.clarity})
-Размер/Длина: ${product.ringSize || 'Н/Д'}
-Сертификат: ${product.certification}
-Последний аудит: ${product.lastAudit}
-
-Служебная заметка: "${product.internalNotes}"
------------------------------------------
-Реестр активов AiAi Gold Vault`;
+  const specSummaryText = specLines.join('\n');
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);

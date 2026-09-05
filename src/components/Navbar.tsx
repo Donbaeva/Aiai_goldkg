@@ -47,9 +47,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="font-semibold text-lg md:text-xl text-[#735c00] hover:opacity-80 transition-opacity flex items-center gap-2"
           >
             AiAi Gold
-            <span className="text-xs bg-[#735c00]/10 text-[#735c00] px-2 py-0.5 rounded-full font-normal hidden sm:inline-block">
-              Реестр активов
-            </span>
           </button>
         </div>
       </div>

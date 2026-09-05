@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { isVideoSrc } from '../utils/format';
 
 interface GallerySectionProps {
   images: string[];
@@ -50,11 +51,22 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images, productN
             className="snap-center shrink-0 w-full h-full relative overflow-hidden"
             onClick={() => setIsLightboxOpen(true)}
           >
-            <img
-              src={imgUrl}
-              alt={`${productName} view ${idx + 1}`}
-              className="w-full h-full object-cover select-none transition-transform duration-500 hover:scale-105"
-            />
+            {isVideoSrc(imgUrl) ? (
+              <video
+                src={imgUrl}
+                className="w-full h-full object-cover select-none"
+                muted
+                loop
+                autoPlay
+                playsInline
+              />
+            ) : (
+              <img
+                src={imgUrl}
+                alt={`${productName} view ${idx + 1}`}
+                className="w-full h-full object-cover select-none transition-transform duration-500 hover:scale-105"
+              />
+            )}
             <div className="absolute top-4 right-4 bg-black/40 text-white backdrop-blur-md px-3 py-1 rounded-full text-xs flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               <span className="material-symbols-outlined text-sm">zoom_in</span>
               Expand
@@ -86,7 +98,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images, productN
             <button
               key={idx}
               onClick={() => scrollToImage(idx)}
-              className={`w-16 h-16 rounded-xl border-2 overflow-hidden shadow-md cursor-pointer transition-all ${
+              className={`w-16 h-16 rounded-xl border-2 overflow-hidden shadow-md cursor-pointer transition-all relative ${
                 idx === activeIndex
                   ? 'border-[#735c00] scale-105 ring-2 ring-[#735c00]/30'
                   : 'border-white opacity-60 hover:opacity-100 hover:scale-100'
@@ -97,6 +109,11 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images, productN
                 alt={`Thumbnail ${idx + 1}`}
                 className="w-full h-full object-cover"
               />
+              {isVideoSrc(imgUrl) && (
+                <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                  <span className="material-symbols-outlined text-white text-xl">play_arrow</span>
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -112,22 +129,42 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images, productN
             <span className="material-symbols-outlined text-3xl">close</span>
           </button>
           <div className="max-w-4xl max-h-[80vh] relative">
-            <img
-              src={images[activeIndex]}
-              alt={productName}
-              className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl"
-            />
+            {isVideoSrc(images[activeIndex]) ? (
+              <video
+                src={images[activeIndex]}
+                className="max-w-full max-h-[80vh] rounded-2xl shadow-2xl"
+                controls
+                autoPlay
+                loop
+                playsInline
+              />
+            ) : (
+              <img
+                src={images[activeIndex]}
+                alt={productName}
+                className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl"
+              />
+            )}
           </div>
           <div className="flex gap-2 mt-6">
             {images.map((imgUrl, idx) => (
               <button
                 key={idx}
                 onClick={() => setActiveIndex(idx)}
-                className={`w-14 h-14 rounded-lg overflow-hidden border-2 ${
+                className={`w-14 h-14 rounded-lg overflow-hidden border-2 relative ${
                   idx === activeIndex ? 'border-[#d4af37]' : 'border-transparent opacity-50'
                 }`}
               >
-                <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                {isVideoSrc(imgUrl) ? (
+                  <>
+                    <video src={imgUrl} className="w-full h-full object-cover" muted />
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                      <span className="material-symbols-outlined text-white text-base">play_arrow</span>
+                    </span>
+                  </>
+                ) : (
+                  <img src={imgUrl} alt="" className="w-full h-full object-cover" />
+                )}
               </button>
             ))}
           </div>
@@ -136,3 +173,4 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images, productN
     </section>
   );
 };
+ы

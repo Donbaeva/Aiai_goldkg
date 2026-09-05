@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { JewelryProduct } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
+import { formatPrice } from '../utils/format';
+import { getStatusStyle } from '../utils/status';
 
 interface ProductSpecsProps {
   product: JewelryProduct;
@@ -22,33 +24,14 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
     setIsEditingNotes(false);
   };
 
-  const formattedPrice = new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(product.price);
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'В НАЛИЧИИ':
-        return 'bg-[#735c00]/10 text-[#735c00] border-[#735c00]/20';
-      case 'ЗАБРОНИРОВАНО':
-        return 'bg-[#d4af37]/20 text-[#554300] border-[#d4af37]/40';
-      case 'ПРОДАНО':
-        return 'bg-[#5d5f5b]/15 text-[#5d5f5b] border-[#5d5f5b]/30';
-      case 'НА АУДИТЕ':
-        return 'bg-[#ba1a1a]/10 text-[#ba1a1a] border-[#ba1a1a]/20';
-      default:
-        return 'bg-[#735c00]/10 text-[#735c00]';
-    }
-  };
+  const formattedPrice = formatPrice(product.price, product.currency);
 
   return (
     <section className="lg:col-span-5 px-4 md:px-0 flex flex-col gap-8">
       {/* Заголовок товара */}
       <div>
         <div className="flex justify-between items-center mb-2">
-          <span className={`text-[12px] font-semibold tracking-widest uppercase px-3 py-1 rounded-full border ${getStatusBadge(product.status)}`}>
+          <span className={`text-[12px] font-semibold tracking-widest uppercase px-3 py-1 rounded-full border ${getStatusStyle(product.status)}`}>
             {product.status}
           </span>
           <span className="text-[12px] font-semibold text-[#4d4635] uppercase tracking-wider">
@@ -63,43 +46,40 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
         </p>
       </div>
 
-      {/* Сетка характеристик 2x2 */}
+      {/* Сетка характеристик — пустые поля не показываются */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
-          <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-            Проба металл
-          </p>
-          <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
-            {product.goldPurity}
-          </p>
-        </div>
+        {product.goldPurity && (
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
+            <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
+              Проба металл
+            </p>
+            <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
+              {product.goldPurity}
+            </p>
+          </div>
+        )}
 
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
-          <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-            Вес изделия
-          </p>
-          <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
-            {product.weightGrams} Грамм
-          </p>
-        </div>
+        {!!product.weightGrams && (
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
+            <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
+              Вес изделия
+            </p>
+            <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
+              {product.weightGrams} Грамм
+            </p>
+          </div>
+        )}
 
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
-          <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-            Караты вставки
-          </p>
-          <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
-            {product.stoneCarats}
-          </p>
-        </div>
-
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
-          <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-            Чистота / Цвет
-          </p>
-          <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
-            {product.clarity}
-          </p>
-        </div>
+        {product.stoneCarats && (
+          <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
+            <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
+              Караты вставки
+            </p>
+            <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
+              {product.stoneCarats}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Детальный список параметров */}
@@ -140,13 +120,13 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
         </div>
       </div>
 
-      {/* Блок внутренних заметок */}
+      {/* Блок «Подробнее» — виден клиентам */}
       <div className="bg-[#f6f3f5] p-6 rounded-2xl border border-dashed border-[#d0c5af]">
         <div className="flex items-center justify-between mb-3 text-[#4d4635]">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-xl">notes</span>
             <h3 className="text-[12px] font-semibold uppercase tracking-wider">
-              Внутренние заметки
+              Подробнее
             </h3>
           </div>
           {!isEditingNotes && isAdmin && (
@@ -166,7 +146,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
               value={notesText}
               onChange={(e) => setNotesText(e.target.value)}
               className="w-full p-3 rounded-xl bg-white border border-[#d0c5af] text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] min-h-[90px]"
-              placeholder="Введите служебные заметки по хранению..."
+              placeholder="Опишите изделие подробнее — эту информацию увидят клиенты..."
             />
             <div className="flex justify-end gap-2">
               <button
@@ -187,8 +167,8 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
             </div>
           </div>
         ) : (
-          <p className="text-sm text-[#4d4635] italic leading-relaxed">
-            "{product.internalNotes || 'Заметок по данному украшению нет.'}"
+          <p className="text-sm text-[#4d4635] leading-relaxed">
+            {product.internalNotes || 'Подробное описание пока не добавлено.'}
           </p>
         )}
       </div>
