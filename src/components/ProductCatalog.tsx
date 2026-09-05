@@ -9,6 +9,7 @@ import { STATUS_OPTIONS, getStatusStyle } from '../utils/status';
 interface ProductCatalogProps {
   products: JewelryProduct[];
   categories: string[];
+  initialCategory?: string;
   onSelectProduct: (product: JewelryProduct) => void;
   onAddNewProduct: () => void;
   onToggleFavorite: (productId: string, e: React.MouseEvent) => void;
@@ -18,6 +19,7 @@ interface ProductCatalogProps {
 export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   products,
   categories,
+  initialCategory,
   onSelectProduct,
   onAddNewProduct,
   onToggleFavorite,
@@ -27,7 +29,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const { t, statusLabel } = useLanguage();
   const { isFavorited, toggleFavorite: toggleClientFavorite } = useClientFavorites();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Все');
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'Все');
   const [selectedStatus, setSelectedStatus] = useState<string>('Все');
   const [sortBy, setSortBy] = useState<'price-desc' | 'price-asc' | 'name' | 'weight'>('price-desc');
 

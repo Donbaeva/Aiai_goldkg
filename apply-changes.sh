@@ -30,7 +30,7 @@ export interface JewelryProduct {
   createdAt: string;
 }
 
-export type ViewMode = 'detail' | 'catalog' | 'analytics';
+export type ViewMode = 'home' | 'detail' | 'catalog' | 'analytics';
 
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/types.ts"
@@ -64,6 +64,7 @@ import React, { useState, useEffect } from 'react';
 import { JewelryProduct, ViewMode } from './types';
 import { INITIAL_PRODUCTS } from './data/mockProducts';
 import { Navbar } from './components/Navbar';
+import { HomePage } from './components/HomePage';
 import { GallerySection } from './components/GallerySection';
 import { ProductSpecs } from './components/ProductSpecs';
 import { ActionBar } from './components/ActionBar';
@@ -98,7 +99,8 @@ export default function App() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const [selectedProductId, setSelectedProductId] = useState<string>('');
-  const [viewMode, setViewMode] = useState<ViewMode>('catalog');
+  const [viewMode, setViewMode] = useState<ViewMode>('home');
+  const [pendingCategory, setPendingCategory] = useState<string | null>(null);
 
   // Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -252,8 +254,22 @@ export default function App() {
       />
 
       {/* Main View Area */}
-      <main className="flex-1 pt-16 pb-32">
-        {viewMode === 'detail' && selectedProduct ? (
+      <main className={viewMode === 'home' ? 'flex-1 pt-16' : 'flex-1 pt-16 pb-32'}>
+        {viewMode === 'home' ? (
+          <HomePage
+            products={products}
+            categories={categories}
+            onShopNow={() => setViewMode('catalog')}
+            onSelectCategory={(cat) => {
+              setPendingCategory(cat);
+              setViewMode('catalog');
+            }}
+            onSelectProduct={(p) => {
+              setSelectedProductId(p.id);
+              setViewMode('detail');
+            }}
+          />
+        ) : viewMode === 'detail' && selectedProduct ? (
           <div className="max-w-screen-xl mx-auto md:px-8 py-4 md:py-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Image Gallery */}
@@ -273,6 +289,7 @@ export default function App() {
           <ProductCatalog
             products={products}
             categories={categories}
+            initialCategory={pendingCategory || undefined}
             onSelectProduct={(p) => {
               setSelectedProductId(p.id);
               setViewMode('detail');
@@ -338,6 +355,13 @@ export default function App() {
 
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/App.tsx"
+mkdir -p src
+cat > src/config.ts << 'AIAI_CLAUDE_EOF_MARKER'
+export const WHATSAPP_NUMBER = '996504401082';
+export const INSTAGRAM_USERNAME = 'aiai_goldkg';
+
+AIAI_CLAUDE_EOF_MARKER
+echo "  ok: src/config.ts"
 mkdir -p src/components
 cat > src/components/Navbar.tsx << 'AIAI_CLAUDE_EOF_MARKER'
 import React from 'react';
@@ -370,9 +394,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 md:px-8 h-16 bg-[#fcf8fb] border-b border-[#d0c5af]/30 glass-effect">
       <div className="flex items-center gap-3">
-        {currentView === 'detail' ? (
+        {currentView !== 'home' ? (
           <button
-            onClick={() => onViewChange('catalog')}
+            onClick={() => onViewChange('home')}
             className="p-2 hover:bg-[#eae7ea] rounded-full transition-colors text-[#735c00] active:scale-95 flex items-center justify-center"
             title={t('backToCatalog')}
           >
@@ -386,7 +410,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <div>
           <button
-            onClick={() => onViewChange('catalog')}
+            onClick={() => onViewChange('home')}
             className="font-semibold text-lg md:text-xl text-[#735c00] hover:opacity-80 transition-opacity flex items-center gap-2"
           >
             AiAi Gold
@@ -422,16 +446,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             {t('catalogTab')} ({productCount})
           </button>
-          <button
-            onClick={() => onViewChange('detail')}
-            className={`px-3 py-1.5 rounded-lg transition-all ${
-              currentView === 'detail'
-                ? 'bg-white text-[#735c00] shadow-sm font-semibold'
-                : 'text-[#4d4635] hover:text-[#1b1b1d]'
-            }`}
-          >
-            {t('detailsTab')}
-          </button>
+          {currentView === 'detail' && (
+            <button
+              onClick={() => onViewChange('detail')}
+              className="px-3 py-1.5 rounded-lg transition-all bg-white text-[#735c00] shadow-sm font-semibold"
+            >
+              {t('detailsTab')}
+            </button>
+          )}
         </nav>
 
         <button
@@ -497,6 +519,221 @@ export const Navbar: React.FC<NavbarProps> = ({
 
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/components/Navbar.tsx"
+mkdir -p src/components
+cat > src/components/HomePage.tsx << 'AIAI_CLAUDE_EOF_MARKER'
+import React from 'react';
+import { JewelryProduct } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
+import { formatPrice } from '../utils/format';
+import { WHATSAPP_NUMBER, INSTAGRAM_USERNAME } from '../config';
+
+const HERO_IMAGE =
+  'https://images.unsplash.com/photo-1689070901068-a7cae2bbc36f?auto=format&fit=crop&w=1600&q=80';
+
+const CATEGORY_IMAGES: Record<string, string> = {
+  'Кольца': 'https://images.unsplash.com/photo-1689070901068-a7cae2bbc36f?auto=format&fit=crop&w=800&q=80',
+  'Колье и Цепи': 'https://images.unsplash.com/photo-1611107683227-e9060eccd846?auto=format&fit=crop&w=800&q=80',
+  'Серьги': 'https://images.unsplash.com/photo-1704445010872-2faefdd733aa?auto=format&fit=crop&w=800&q=80',
+  'Браслеты': 'https://images.unsplash.com/photo-1583315528236-b893494a35ee?auto=format&fit=crop&w=800&q=80',
+  'Жесткие браслеты': 'https://images.unsplash.com/photo-1583315528236-b893494a35ee?auto=format&fit=crop&w=800&q=80',
+};
+const FALLBACK_CATEGORY_IMAGE =
+  'https://images.unsplash.com/photo-1611107683227-e9060eccd846?auto=format&fit=crop&w=800&q=80';
+
+interface HomePageProps {
+  products: JewelryProduct[];
+  categories: string[];
+  onShopNow: () => void;
+  onSelectCategory: (category: string) => void;
+  onSelectProduct: (product: JewelryProduct) => void;
+}
+
+export const HomePage: React.FC<HomePageProps> = ({
+  products,
+  categories,
+  onShopNow,
+  onSelectCategory,
+  onSelectProduct,
+}) => {
+  const { t } = useLanguage();
+
+  const featured = products.filter((p) => p.status !== 'ПРОДАНО').slice(0, 4);
+  const whatsappHref = `https://wa.me/${WHATSAPP_NUMBER}`;
+  const instagramHref = `https://instagram.com/${INSTAGRAM_USERNAME}`;
+
+  return (
+    <div className="bg-[#fcf8fb]">
+      {/* Announcement bar */}
+      <div className="bg-[#735c00] text-white text-center text-xs md:text-sm py-2.5 px-4">
+        {t('homeAnnouncement')}{' '}
+        <a href={whatsappHref} target="_blank" rel="noreferrer" className="underline font-semibold">
+          {t('homeAnnouncementCta')}
+        </a>
+      </div>
+
+      {/* Hero */}
+      <section className="grid grid-cols-1 lg:grid-cols-2">
+        <div className="h-[360px] lg:h-[560px] overflow-hidden">
+          <img src={HERO_IMAGE} alt="AiAi Gold" className="w-full h-full object-cover" />
+        </div>
+        <div className="flex items-center justify-center p-8 md:p-16 bg-[#f6f3f5]">
+          <div className="max-w-md">
+            <span className="text-xs font-semibold uppercase tracking-widest text-[#735c00]">
+              {t('homeHeroKicker')}
+            </span>
+            <h1 className="text-3xl md:text-5xl font-semibold text-[#1b1b1d] mt-3 mb-5 leading-tight">
+              {t('homeHeroTitle')}
+            </h1>
+            <p className="text-sm md:text-base text-[#4d4635] leading-relaxed mb-8">
+              {t('homeHeroText')}
+            </p>
+            <button
+              onClick={onShopNow}
+              className="bg-[#735c00] text-white px-7 py-3.5 rounded-2xl font-semibold text-sm hover:bg-[#574500] transition-all shadow-lg shadow-[#735c00]/20 active:scale-95"
+            >
+              {t('homeHeroCta')}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Shop by category */}
+      <section className="max-w-screen-xl mx-auto px-4 md:px-8 py-16">
+        <h2 className="text-2xl md:text-3xl font-semibold text-[#1b1b1d] text-center mb-10">
+          {t('homeCategoriesTitle')}
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => onSelectCategory(cat)}
+              className="group text-left"
+            >
+              <div className="aspect-square rounded-2xl overflow-hidden bg-[#e0e0db]">
+                <img
+                  src={CATEGORY_IMAGES[cat] || FALLBACK_CATEGORY_IMAGE}
+                  alt={cat}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                />
+              </div>
+              <p className="text-center text-xs md:text-sm font-semibold uppercase tracking-wide text-[#1b1b1d] mt-3">
+                {cat}
+              </p>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Featured products */}
+      {featured.length > 0 && (
+        <section className="max-w-screen-xl mx-auto px-4 md:px-8 pb-16">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl md:text-3xl font-semibold text-[#1b1b1d]">
+              {t('homeFeaturedTitle')}
+            </h2>
+            <button
+              onClick={onShopNow}
+              className="text-sm font-semibold text-[#735c00] hover:underline flex items-center gap-1"
+            >
+              {t('homeFeaturedCta')}
+              <span className="material-symbols-outlined text-base">chevron_right</span>
+            </button>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+            {featured.map((product) => (
+              <button
+                key={product.id}
+                onClick={() => onSelectProduct(product)}
+                className="group text-left"
+              >
+                <div className="aspect-square rounded-2xl overflow-hidden bg-[#e0e0db]">
+                  <img
+                    src={product.images[0] || FALLBACK_CATEGORY_IMAGE}
+                    alt={product.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+                <p className="text-sm font-semibold text-[#1b1b1d] mt-3 leading-snug">
+                  {product.name}
+                </p>
+                <p className="text-sm font-bold text-[#735c00]">
+                  {formatPrice(product.price, product.currency)}
+                </p>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Value props */}
+      <section className="bg-[#f6f3f5] py-16 px-4 md:px-8">
+        <div className="max-w-screen-xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-10 text-center">
+          <div>
+            <span className="material-symbols-outlined text-3xl text-[#735c00] mb-3 block">chat</span>
+            <h3 className="font-semibold text-lg text-[#1b1b1d] mb-2">{t('homeValue1Title')}</h3>
+            <p className="text-sm text-[#4d4635] mb-4">{t('homeValue1Text')}</p>
+            <a href={whatsappHref} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[#735c00] hover:underline">
+              {t('homeValue1Cta')}
+            </a>
+          </div>
+          <div>
+            <span className="material-symbols-outlined text-3xl text-[#735c00] mb-3 block">local_shipping</span>
+            <h3 className="font-semibold text-lg text-[#1b1b1d] mb-2">{t('homeValue2Title')}</h3>
+            <p className="text-sm text-[#4d4635] mb-4">{t('homeValue2Text')}</p>
+            <a href={whatsappHref} target="_blank" rel="noreferrer" className="text-sm font-semibold text-[#735c00] hover:underline">
+              {t('homeValue2Cta')}
+            </a>
+          </div>
+          <div>
+            <span className="material-symbols-outlined text-3xl text-[#735c00] mb-3 block">verified</span>
+            <h3 className="font-semibold text-lg text-[#1b1b1d] mb-2">{t('homeValue3Title')}</h3>
+            <p className="text-sm text-[#4d4635] mb-4">{t('homeValue3Text')}</p>
+            <button onClick={onShopNow} className="text-sm font-semibold text-[#735c00] hover:underline">
+              {t('homeValue3Cta')}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-[#1b1b1d] text-[#e0dcd3] py-14 px-4 md:px-8">
+        <div className="max-w-screen-xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-10">
+          <div>
+            <h3 className="font-semibold text-lg text-white mb-3">AiAi Gold</h3>
+            <p className="text-sm text-[#a89c87] leading-relaxed max-w-xs">{t('homeFooterAbout')}</p>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-widest text-[#d4af37] mb-4">
+              {t('homeFooterContacts')}
+            </h4>
+            <div className="flex flex-col gap-2 text-sm">
+              <a href={whatsappHref} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
+                WhatsApp: +{WHATSAPP_NUMBER}
+              </a>
+              <a href={instagramHref} target="_blank" rel="noreferrer" className="hover:text-white transition-colors">
+                Instagram: @{INSTAGRAM_USERNAME}
+              </a>
+            </div>
+          </div>
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-widest text-[#d4af37] mb-4">
+              {t('homeFooterCatalog')}
+            </h4>
+            <button onClick={onShopNow} className="text-sm hover:text-white transition-colors">
+              {t('homeFeaturedCta')}
+            </button>
+          </div>
+        </div>
+        <div className="max-w-screen-xl mx-auto border-t border-white/10 mt-10 pt-6 text-xs text-[#a89c87]">
+          © {new Date().getFullYear()} {t('homeFooterLegal')}
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+AIAI_CLAUDE_EOF_MARKER
+echo "  ok: src/components/HomePage.tsx"
 mkdir -p src/components
 cat > src/components/ProductSpecs.tsx << 'AIAI_CLAUDE_EOF_MARKER'
 import React, { useState } from 'react';
@@ -699,6 +936,7 @@ import { STATUS_OPTIONS, getStatusStyle } from '../utils/status';
 interface ProductCatalogProps {
   products: JewelryProduct[];
   categories: string[];
+  initialCategory?: string;
   onSelectProduct: (product: JewelryProduct) => void;
   onAddNewProduct: () => void;
   onToggleFavorite: (productId: string, e: React.MouseEvent) => void;
@@ -708,6 +946,7 @@ interface ProductCatalogProps {
 export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   products,
   categories,
+  initialCategory,
   onSelectProduct,
   onAddNewProduct,
   onToggleFavorite,
@@ -717,7 +956,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const { t, statusLabel } = useLanguage();
   const { isFavorited, toggleFavorite: toggleClientFavorite } = useClientFavorites();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('Все');
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || 'Все');
   const [selectedStatus, setSelectedStatus] = useState<string>('Все');
   const [sortBy, setSortBy] = useState<'price-desc' | 'price-asc' | 'name' | 'weight'>('price-desc');
 
@@ -1878,9 +2117,7 @@ import React, { useState } from 'react';
 import { JewelryProduct } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { buildOrderMessage } from '../i18n/translations';
-
-const WHATSAPP_NUMBER = '996504401082';
-const INSTAGRAM_USERNAME = 'aiai_goldkg';
+import { WHATSAPP_NUMBER, INSTAGRAM_USERNAME } from '../config';
 
 interface OrderBarProps {
   products: JewelryProduct[];
@@ -2193,6 +2430,29 @@ const ru: Dict = {
   instagram: 'Instagram',
   instagramCopied: 'Текст сообщения скопирован — вставьте его в переписке Instagram',
   loading: 'Загрузка каталога…',
+
+  homeAnnouncement: 'Изделия из золота 585 и 750 пробы. Индивидуальные заказы и доставка по Кыргызстану.',
+  homeAnnouncementCta: 'Написать нам',
+  homeHeroKicker: 'AiAi Gold',
+  homeHeroTitle: 'Золотые украшения ручного отбора',
+  homeHeroText: 'Каждое изделие в нашей коллекции проверено на пробу и подлинность камней. Кольца, серьги, цепи и браслеты — под заказ или в наличии, с сертификатом на руки.',
+  homeHeroCta: 'Смотреть каталог',
+  homeCategoriesTitle: 'Категории',
+  homeFeaturedTitle: 'Популярные изделия',
+  homeFeaturedCta: 'Весь каталог',
+  homeValue1Title: 'Консультация в WhatsApp',
+  homeValue1Text: 'Поможем подобрать изделие и ответим на вопросы по пробе, весу и цене.',
+  homeValue1Cta: 'Написать в WhatsApp',
+  homeValue2Title: 'Доставка по Кыргызстану',
+  homeValue2Text: 'Отправляем изделия по стране, упаковка и передача — с осторожностью.',
+  homeValue2Cta: 'Уточнить условия',
+  homeValue3Title: 'Сертификат и проба',
+  homeValue3Text: 'На каждое изделие — подтверждение пробы металла, на камни — сертификат.',
+  homeValue3Cta: 'Смотреть каталог',
+  homeFooterAbout: 'AiAi Gold — ювелирные изделия из золота в Кыргызстане. Кольца, серьги, цепи, браслеты — в наличии и под заказ.',
+  homeFooterContacts: 'Контакты',
+  homeFooterCatalog: 'Каталог',
+  homeFooterLegal: 'AiAi Gold. Все изделия проходят проверку пробы перед продажей.',
 };
 
 const ky: Dict = {
@@ -2245,6 +2505,29 @@ const ky: Dict = {
   instagram: 'Instagram',
   instagramCopied: 'Билдирүү тексти көчүрүлдү — Instagram баракчасына чаптап жөнөтүңүз',
   loading: 'Каталог жүктөлүүдө…',
+
+  homeAnnouncement: '585 жана 750 сынамадагы алтын буюмдар. Жеке заказдар жана Кыргызстан боюнча жеткирүү.',
+  homeAnnouncementCta: 'Бизге жазыңыз',
+  homeHeroKicker: 'AiAi Gold',
+  homeHeroTitle: 'Тандалма алтын буюмдар',
+  homeHeroText: 'Жыйнагыбыздагы ар бир буюм сынамасы жана таштарынын аныктыгы боюнча текшерилген. Шакектер, сөйкөлөр, чынжырлар жана билериктер — заказ менен же дароо, сертификат менен.',
+  homeHeroCta: 'Каталогду көрүү',
+  homeCategoriesTitle: 'Категориялар',
+  homeFeaturedTitle: 'Популярдуу буюмдар',
+  homeFeaturedCta: 'Бүткүл каталог',
+  homeValue1Title: 'WhatsApp аркылуу консультация',
+  homeValue1Text: 'Буюм тандоого жардам беребиз жана сынама, салмак, баа боюнча суроолорго жооп беребиз.',
+  homeValue1Cta: 'WhatsApp\'ка жазуу',
+  homeValue2Title: 'Кыргызстан боюнча жеткирүү',
+  homeValue2Text: 'Буюмдарды өлкө боюнча жөнөтөбүз, таңгактоо жана өткөрүп берүү этияттык менен.',
+  homeValue2Cta: 'Тактап көрүү',
+  homeValue3Title: 'Сертификат жана сынама',
+  homeValue3Text: 'Ар бир буюмга металл сынамасынын тастыгы, таштарга — сертификат.',
+  homeValue3Cta: 'Каталогду көрүү',
+  homeFooterAbout: 'AiAi Gold — Кыргызстандагы алтын зер буюмдары. Шакектер, сөйкөлөр, чынжырлар, билериктер — дароо жана заказ менен.',
+  homeFooterContacts: 'Байланыш',
+  homeFooterCatalog: 'Каталог',
+  homeFooterLegal: 'AiAi Gold. Бардык буюмдар сатууга чейин сынамадан текшерилет.',
 };
 
 const en: Dict = {
@@ -2297,6 +2580,29 @@ const en: Dict = {
   instagram: 'Instagram',
   instagramCopied: 'Message copied — paste it into your Instagram DM',
   loading: 'Loading catalog…',
+
+  homeAnnouncement: '585 and 750 gold jewelry. Custom orders and delivery across Kyrgyzstan.',
+  homeAnnouncementCta: 'Message us',
+  homeHeroKicker: 'AiAi Gold',
+  homeHeroTitle: 'Hand-picked gold jewelry',
+  homeHeroText: 'Every piece in our collection is checked for gold purity and stone authenticity. Rings, earrings, chains and bracelets — in stock or made to order, with a certificate included.',
+  homeHeroCta: 'Browse the catalog',
+  homeCategoriesTitle: 'Categories',
+  homeFeaturedTitle: 'Featured pieces',
+  homeFeaturedCta: 'View full catalog',
+  homeValue1Title: 'WhatsApp consultation',
+  homeValue1Text: "We'll help you choose a piece and answer questions on purity, weight and price.",
+  homeValue1Cta: 'Message on WhatsApp',
+  homeValue2Title: 'Delivery across Kyrgyzstan',
+  homeValue2Text: 'We ship nationwide — packaging and handover handled with care.',
+  homeValue2Cta: 'Ask about delivery',
+  homeValue3Title: 'Certificate & purity',
+  homeValue3Text: 'Every piece comes with proof of metal purity, and a certificate for stones.',
+  homeValue3Cta: 'Browse the catalog',
+  homeFooterAbout: 'AiAi Gold — gold jewelry in Kyrgyzstan. Rings, earrings, chains, bracelets — in stock and made to order.',
+  homeFooterContacts: 'Contacts',
+  homeFooterCatalog: 'Catalog',
+  homeFooterLegal: 'AiAi Gold. Every piece is purity-checked before sale.',
 };
 
 const DICTS: Record<Lang, Dict> = { ru, ky, en };
@@ -2406,4 +2712,4 @@ export function isVideoSrc(src: string): boolean {
 
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/utils/format.ts"
-echo "Готово. Теперь: git add -A && git commit -m \"fix favorites state\" && git push"
+echo "Готово. Теперь: git add -A && git commit -m \"new homepage\" && git push"

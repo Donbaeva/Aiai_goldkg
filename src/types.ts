@@ -23,5 +23,5 @@ export interface JewelryProduct {
   createdAt: string;
 }
 
-export type ViewMode = 'detail' | 'catalog' | 'analytics';
+export type ViewMode = 'home' | 'detail' | 'catalog' | 'analytics';
 

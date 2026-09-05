@@ -28,9 +28,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 md:px-8 h-16 bg-[#fcf8fb] border-b border-[#d0c5af]/30 glass-effect">
       <div className="flex items-center gap-3">
-        {currentView === 'detail' ? (
+        {currentView !== 'home' ? (
           <button
-            onClick={() => onViewChange('catalog')}
+            onClick={() => onViewChange('home')}
             className="p-2 hover:bg-[#eae7ea] rounded-full transition-colors text-[#735c00] active:scale-95 flex items-center justify-center"
             title={t('backToCatalog')}
           >
@@ -44,7 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <div>
           <button
-            onClick={() => onViewChange('catalog')}
+            onClick={() => onViewChange('home')}
             className="font-semibold text-lg md:text-xl text-[#735c00] hover:opacity-80 transition-opacity flex items-center gap-2"
           >
             AiAi Gold
@@ -80,16 +80,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             {t('catalogTab')} ({productCount})
           </button>
-          <button
-            onClick={() => onViewChange('detail')}
-            className={`px-3 py-1.5 rounded-lg transition-all ${
-              currentView === 'detail'
-                ? 'bg-white text-[#735c00] shadow-sm font-semibold'
-                : 'text-[#4d4635] hover:text-[#1b1b1d]'
-            }`}
-          >
-            {t('detailsTab')}
-          </button>
+          {currentView === 'detail' && (
+            <button
+              onClick={() => onViewChange('detail')}
+              className="px-3 py-1.5 rounded-lg transition-all bg-white text-[#735c00] shadow-sm font-semibold"
+            >
+              {t('detailsTab')}
+            </button>
+          )}
         </nav>
 
         <button

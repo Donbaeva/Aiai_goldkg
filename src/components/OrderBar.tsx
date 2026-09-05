@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import { JewelryProduct } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { buildOrderMessage } from '../i18n/translations';
-
-const WHATSAPP_NUMBER = '996504401082';
-const INSTAGRAM_USERNAME = 'aiai_goldkg';
+import { WHATSAPP_NUMBER, INSTAGRAM_USERNAME } from '../config';
 
 interface OrderBarProps {
   products: JewelryProduct[];

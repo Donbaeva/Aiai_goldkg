@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { JewelryProduct, ViewMode } from './types';
 import { INITIAL_PRODUCTS } from './data/mockProducts';
 import { Navbar } from './components/Navbar';
+import { HomePage } from './components/HomePage';
 import { GallerySection } from './components/GallerySection';
 import { ProductSpecs } from './components/ProductSpecs';
 import { ActionBar } from './components/ActionBar';
@@ -36,7 +37,8 @@ export default function App() {
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
   const [selectedProductId, setSelectedProductId] = useState<string>('');
-  const [viewMode, setViewMode] = useState<ViewMode>('catalog');
+  const [viewMode, setViewMode] = useState<ViewMode>('home');
+  const [pendingCategory, setPendingCategory] = useState<string | null>(null);
 
   // Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -190,8 +192,22 @@ export default function App() {
       />
 
       {/* Main View Area */}
-      <main className="flex-1 pt-16 pb-32">
-        {viewMode === 'detail' && selectedProduct ? (
+      <main className={viewMode === 'home' ? 'flex-1 pt-16' : 'flex-1 pt-16 pb-32'}>
+        {viewMode === 'home' ? (
+          <HomePage
+            products={products}
+            categories={categories}
+            onShopNow={() => setViewMode('catalog')}
+            onSelectCategory={(cat) => {
+              setPendingCategory(cat);
+              setViewMode('catalog');
+            }}
+            onSelectProduct={(p) => {
+              setSelectedProductId(p.id);
+              setViewMode('detail');
+            }}
+          />
+        ) : viewMode === 'detail' && selectedProduct ? (
           <div className="max-w-screen-xl mx-auto md:px-8 py-4 md:py-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Image Gallery */}
@@ -211,6 +227,7 @@ export default function App() {
           <ProductCatalog
             products={products}
             categories={categories}
+            initialCategory={pendingCategory || undefined}
             onSelectProduct={(p) => {
               setSelectedProductId(p.id);
               setViewMode('detail');
