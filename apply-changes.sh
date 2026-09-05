@@ -1,20 +1,12 @@
 #!/usr/bin/env bash
 set -e
 echo "Обновляю файлы..."
+if [ -f src/components/AuditLogModal.tsx ]; then rm src/components/AuditLogModal.tsx; echo "  removed: src/components/AuditLogModal.tsx"; fi
 mkdir -p src
 cat > src/types.ts << 'AIAI_CLAUDE_EOF_MARKER'
 export type StockStatus = 'ПОД ЗАКАЗ' | 'В НАЛИЧИИ' | 'ПРОДАНО' | 'РЕЗЕРВИРОВАНО' | 'В ПУТИ';
 export type Currency = 'KGS' | 'USD';
 export type JewelryCategory = string;
-
-export interface AuditRecord {
-  id: string;
-  date: string;
-  inspector: string;
-  location: string;
-  status: StockStatus;
-  note: string;
-}
 
 export interface JewelryProduct {
   id: string;
@@ -30,30 +22,330 @@ export interface JewelryProduct {
   ringSize?: string;
   certification: string;
   certificationUrl?: string;
-  lastAudit: string;
   internalNotes: string;
   /** Photo and video data URLs / links, shown to clients in the gallery. */
   images: string[];
   isFavorite: boolean;
   createdAt: string;
-  auditHistory: AuditRecord[];
 }
 
 export type ViewMode = 'detail' | 'catalog' | 'analytics';
 
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/types.ts"
+mkdir -p src
+cat > src/main.tsx << 'AIAI_CLAUDE_EOF_MARKER'
+import {StrictMode} from 'react';
+import {createRoot} from 'react-dom/client';
+import App from './App.tsx';
+import { AdminProvider } from './contexts/AdminContext';
+import { LanguageProvider } from './contexts/LanguageContext';
+import './index.css';
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <AdminProvider>
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
+    </AdminProvider>
+  </StrictMode>,
+);
+
+AIAI_CLAUDE_EOF_MARKER
+echo "  ok: src/main.tsx"
+mkdir -p src
+cat > src/App.tsx << 'AIAI_CLAUDE_EOF_MARKER'
+import React, { useState, useEffect } from 'react';
+import { JewelryProduct, ViewMode } from './types';
+import { INITIAL_PRODUCTS } from './data/mockProducts';
+import { Navbar } from './components/Navbar';
+import { GallerySection } from './components/GallerySection';
+import { ProductSpecs } from './components/ProductSpecs';
+import { ActionBar } from './components/ActionBar';
+import { OrderBar } from './components/OrderBar';
+import { ProductCatalog } from './components/ProductCatalog';
+import { EditProductModal } from './components/EditProductModal';
+import { ShareModal } from './components/ShareModal';
+import { CategoryManagerModal } from './components/CategoryManagerModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
+import { useAdmin } from './contexts/AdminContext';
+import { useLanguage } from './contexts/LanguageContext';
+import { useClientFavorites } from './hooks/useClientFavorites';
+import {
+  subscribeToProducts,
+  subscribeToCategories,
+  saveProductRemote,
+  saveProductsRemote,
+  saveCategoriesRemote,
+  deleteProductRemote,
+  seedIfEmpty,
+} from './services/catalogStore';
+
+const DEFAULT_CATEGORIES = ['Кольца', 'Колье и Цепи', 'Серьги', 'Браслеты', 'Жесткие браслеты'];
+
+export default function App() {
+  const { isAdmin, adminEmail } = useAdmin();
+  const { favoriteIds, clearFavorites } = useClientFavorites();
+  const { t } = useLanguage();
+  const [products, setProducts] = useState<JewelryProduct[]>([]);
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [isLoading, setIsLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+  const [viewMode, setViewMode] = useState<ViewMode>('catalog');
+
+  // Modals
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<JewelryProduct | null>(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+
+  // Connect to the shared Firestore catalog: seed it once if it's brand new,
+  // then subscribe so every manager's screen updates in realtime.
+  useEffect(() => {
+    let cancelled = false;
+
+    seedIfEmpty(INITIAL_PRODUCTS, DEFAULT_CATEGORIES).catch((e) => {
+      if (!cancelled) setConnectionError(String(e));
+    });
+
+    const unsubProducts = subscribeToProducts(
+      (remoteProducts) => {
+        setProducts(remoteProducts);
+        setIsLoading(false);
+      },
+      (e) => setConnectionError(String(e))
+    );
+
+    const unsubCategories = subscribeToCategories(
+      (remoteCategories) => setCategories(remoteCategories),
+      DEFAULT_CATEGORIES,
+      (e) => setConnectionError(String(e))
+    );
+
+    return () => {
+      cancelled = true;
+      unsubProducts();
+      unsubCategories();
+    };
+  }, []);
+
+  const handleAddCategory = (newCat: string) => {
+    if (!isAdmin) return;
+    const trimmed = newCat.trim();
+    if (trimmed && !categories.includes(trimmed)) {
+      const updated = [...categories, trimmed];
+      setCategories(updated);
+      saveCategoriesRemote(updated).catch((e) => setConnectionError(String(e)));
+    }
+  };
+
+  const handleDeleteCategory = (catToDelete: string) => {
+    if (!isAdmin) return;
+    const updatedCategories = categories.filter((c) => c !== catToDelete);
+    setCategories(updatedCategories);
+    saveCategoriesRemote(updatedCategories).catch((e) => setConnectionError(String(e)));
+
+    // Reassign products in deleted category to "Другое"
+    const affected = products
+      .filter((p) => p.category === catToDelete)
+      .map((p) => ({ ...p, category: 'Другое' }));
+    if (affected.length > 0) {
+      setProducts((prev) =>
+        prev.map((p) => (p.category === catToDelete ? { ...p, category: 'Другое' } : p))
+      );
+      saveProductsRemote(affected).catch((e) => setConnectionError(String(e)));
+    }
+  };
+
+  const selectedProduct = products.find((p) => p.id === selectedProductId) || products[0];
+
+  const handleUpdateNotes = (newNotes: string) => {
+    if (!isAdmin || !selectedProduct) return;
+    const updated = { ...selectedProduct, internalNotes: newNotes };
+    setProducts((prev) => prev.map((p) => (p.id === selectedProduct.id ? updated : p)));
+    saveProductRemote(updated).catch((e) => setConnectionError(String(e)));
+  };
+
+  const handleToggleFavorite = (productId?: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!isAdmin) return;
+    const idToToggle = productId || selectedProduct?.id;
+    if (!idToToggle) return;
+    const target = products.find((p) => p.id === idToToggle);
+    if (!target) return;
+    const updated = { ...target, isFavorite: !target.isFavorite };
+    setProducts((prev) => prev.map((p) => (p.id === idToToggle ? updated : p)));
+    saveProductRemote(updated).catch((e2) => setConnectionError(String(e2)));
+  };
+
+  const handleSaveProduct = (updatedProduct: JewelryProduct) => {
+    if (!isAdmin) return;
+    setProducts((prev) => {
+      const exists = prev.some((p) => p.id === updatedProduct.id);
+      if (exists) {
+        return prev.map((p) => (p.id === updatedProduct.id ? updatedProduct : p));
+      }
+      return [updatedProduct, ...prev];
+    });
+    saveProductRemote(updatedProduct).catch((e) => setConnectionError(String(e)));
+    setSelectedProductId(updatedProduct.id);
+    setViewMode('detail');
+  };
+
+  const handleDeleteProduct = (productId: string) => {
+    if (!isAdmin) return;
+    setProducts((prev) => {
+      const remaining = prev.filter((p) => p.id !== productId);
+      if (selectedProductId === productId) {
+        setSelectedProductId(remaining[0]?.id ?? '');
+        setViewMode('catalog');
+      }
+      return remaining;
+    });
+    deleteProductRemote(productId).catch((e) => setConnectionError(String(e)));
+  };
+
+  const handleOpenNewProductModal = () => {
+    if (!isAdmin) return;
+    setEditingProduct(null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleOpenEditProductModal = () => {
+    if (!isAdmin || !selectedProduct) return;
+    setEditingProduct(selectedProduct);
+    setIsEditModalOpen(true);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#fcf8fb] flex items-center justify-center">
+        <p className="text-[#1b1b1d]/60">{t('loading')}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#fcf8fb] text-[#1b1b1d] font-sans antialiased flex flex-col selection:bg-[#735c00]/20">
+      {connectionError && (
+        <div className="fixed top-0 inset-x-0 z-[100] bg-red-600 text-white text-sm text-center py-2 px-4">
+          Проблема с подключением к базе данных: {connectionError}
+        </div>
+      )}
+      {/* Top Header Navbar */}
+      <Navbar
+        currentView={viewMode}
+        onViewChange={setViewMode}
+        selectedProduct={selectedProduct ?? null}
+        onOpenShare={() => setIsShareModalOpen(true)}
+        productCount={products.length}
+        isAdmin={isAdmin}
+        onOpenAdmin={() => setIsAdminModalOpen(true)}
+      />
+
+      {/* Main View Area */}
+      <main className="flex-1 pt-16 pb-32">
+        {viewMode === 'detail' && selectedProduct ? (
+          <div className="max-w-screen-xl mx-auto md:px-8 py-4 md:py-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Image Gallery */}
+              <GallerySection
+                images={selectedProduct.images}
+                productName={selectedProduct.name}
+              />
+
+              {/* Specs & Info */}
+              <ProductSpecs
+                product={selectedProduct}
+                onUpdateNotes={handleUpdateNotes}
+              />
+            </div>
+          </div>
+        ) : (
+          <ProductCatalog
+            products={products}
+            categories={categories}
+            onSelectProduct={(p) => {
+              setSelectedProductId(p.id);
+              setViewMode('detail');
+            }}
+            onAddNewProduct={handleOpenNewProductModal}
+            onToggleFavorite={(id, e) => handleToggleFavorite(id, e)}
+            onOpenCategoryManager={() => setIsCategoryModalOpen(true)}
+          />
+        )}
+      </main>
+
+      {/* Fixed Action Bar (Only shown on detail view, admins only) */}
+      {viewMode === 'detail' && selectedProduct && isAdmin && (
+        <ActionBar
+          onEditProduct={handleOpenEditProductModal}
+          isFavorite={selectedProduct.isFavorite}
+          onToggleFavorite={() => handleToggleFavorite(selectedProduct.id)}
+        />
+      )}
+
+      {/* Floating order bar for customers with favorited items */}
+      {!isAdmin && (
+        <OrderBar products={products} favoriteIds={favoriteIds} onClearFavorites={clearFavorites} />
+      )}
+
+      {/* Modals */}
+      <EditProductModal
+        product={editingProduct}
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSave={handleSaveProduct}
+        onDelete={handleDeleteProduct}
+        categories={categories}
+        onAddCategory={handleAddCategory}
+      />
+
+      {selectedProduct && (
+        <ShareModal
+          product={selectedProduct}
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+        />
+      )}
+
+      <CategoryManagerModal
+        isOpen={isCategoryModalOpen}
+        onClose={() => setIsCategoryModalOpen(false)}
+        categories={categories}
+        products={products}
+        onAddCategory={handleAddCategory}
+        onDeleteCategory={handleDeleteCategory}
+      />
+
+      <AdminLoginModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        isAdmin={isAdmin}
+        adminEmail={adminEmail}
+      />
+    </div>
+  );
+}
+
+AIAI_CLAUDE_EOF_MARKER
+echo "  ok: src/App.tsx"
 mkdir -p src/components
 cat > src/components/Navbar.tsx << 'AIAI_CLAUDE_EOF_MARKER'
 import React from 'react';
 import { ViewMode, JewelryProduct } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
+import { LANGUAGES } from '../i18n/translations';
 
 interface NavbarProps {
   currentView: ViewMode;
   onViewChange: (view: ViewMode) => void;
   selectedProduct: JewelryProduct | null;
   onOpenShare: () => void;
-  onOpenAuditLog: () => void;
   productCount: number;
   isAdmin: boolean;
   onOpenAdmin: () => void;
@@ -64,12 +356,12 @@ export const Navbar: React.FC<NavbarProps> = ({
   onViewChange,
   selectedProduct,
   onOpenShare,
-  onOpenAuditLog,
   productCount,
   isAdmin,
   onOpenAdmin,
 }) => {
   const [showMoreMenu, setShowMoreMenu] = React.useState(false);
+  const { lang, setLang, t } = useLanguage();
 
   return (
     <header className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 md:px-8 h-16 bg-[#fcf8fb] border-b border-[#d0c5af]/30 glass-effect">
@@ -78,7 +370,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => onViewChange('catalog')}
             className="p-2 hover:bg-[#eae7ea] rounded-full transition-colors text-[#735c00] active:scale-95 flex items-center justify-center"
-            title="Вернуться в каталог"
+            title={t('backToCatalog')}
           >
             <span className="material-symbols-outlined text-2xl">arrow_back</span>
           </button>
@@ -87,9 +379,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="material-symbols-outlined text-2xl">diamond</span>
           </div>
         )}
-        
+
         <div>
-          <button 
+          <button
             onClick={() => onViewChange('catalog')}
             className="font-semibold text-lg md:text-xl text-[#735c00] hover:opacity-80 transition-opacity flex items-center gap-2"
           >
@@ -99,6 +391,22 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       <div className="flex items-center gap-1 md:gap-2">
+        <div className="flex items-center bg-[#f0edef] p-1 rounded-xl text-[11px] font-bold mr-1">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setLang(l.code)}
+              className={`px-2 py-1.5 rounded-lg transition-all ${
+                lang === l.code
+                  ? 'bg-white text-[#735c00] shadow-sm'
+                  : 'text-[#4d4635] hover:text-[#1b1b1d]'
+              }`}
+            >
+              {l.label}
+            </button>
+          ))}
+        </div>
+
         <nav className="flex items-center bg-[#f0edef] p-1 rounded-xl text-xs md:text-sm font-medium mr-2">
           <button
             onClick={() => onViewChange('catalog')}
@@ -108,7 +416,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-[#4d4635] hover:text-[#1b1b1d]'
             }`}
           >
-            Каталог ({productCount})
+            {t('catalogTab')} ({productCount})
           </button>
           <button
             onClick={() => onViewChange('detail')}
@@ -118,14 +426,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 : 'text-[#4d4635] hover:text-[#1b1b1d]'
             }`}
           >
-            Характеристики
+            {t('detailsTab')}
           </button>
         </nav>
 
         <button
           onClick={onOpenShare}
           className="p-2 hover:bg-[#eae7ea] rounded-full transition-all text-[#735c00] active:scale-95"
-          title="Поделиться спецификацией"
+          title={t('share')}
         >
           <span className="material-symbols-outlined">share</span>
         </button>
@@ -134,32 +442,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
             className="p-2 hover:bg-[#eae7ea] rounded-full transition-all text-[#735c00] active:scale-95"
-            title="Дополнительные опции"
+            title={t('moreOptions')}
           >
             <span className="material-symbols-outlined">more_vert</span>
           </button>
 
           {showMoreMenu && selectedProduct && (
-            <div 
+            <div
               className="absolute right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-[#d0c5af]/40 py-2 z-50 text-sm"
               onClick={() => setShowMoreMenu(false)}
             >
               <div className="px-4 py-2 border-b border-[#f0edef] text-xs font-semibold uppercase tracking-wider text-[#4d4635]">
-                Действия ({selectedProduct.sku})
+                {t('actionsFor')} ({selectedProduct.sku})
               </div>
-              <button
-                onClick={onOpenAuditLog}
-                className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f5] text-[#1b1b1d] flex items-center gap-2"
-              >
-                <span className="material-symbols-outlined text-lg text-[#735c00]">verified</span>
-                История аудита ({selectedProduct.auditHistory.length})
-              </button>
               <button
                 onClick={onOpenShare}
                 className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f5] text-[#1b1b1d] flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-lg text-[#735c00]">picture_as_pdf</span>
-                Экспорт VIP-паспорта
+                {t('exportPassport')}
               </button>
               <a
                 href={selectedProduct.certificationUrl || 'https://www.gia.edu'}
@@ -168,7 +469,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-full text-left px-4 py-2.5 hover:bg-[#f6f3f5] text-[#1b1b1d] flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-lg text-[#735c00]">open_in_new</span>
-                Проверить сертификат
+                {t('checkCertificate')}
               </a>
             </div>
           )}
@@ -181,7 +482,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               ? 'bg-[#735c00] text-white hover:bg-[#574500]'
               : 'text-[#735c00] hover:bg-[#eae7ea]'
           }`}
-          title={isAdmin ? 'Вы вошли как администратор' : 'Вход для администратора'}
+          title={isAdmin ? t('adminLoggedIn') : t('adminLogin')}
         >
           <span className="material-symbols-outlined">admin_panel_settings</span>
         </button>
@@ -197,21 +498,20 @@ cat > src/components/ProductSpecs.tsx << 'AIAI_CLAUDE_EOF_MARKER'
 import React, { useState } from 'react';
 import { JewelryProduct } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { formatPrice } from '../utils/format';
 import { getStatusStyle } from '../utils/status';
+import { useClientFavorites } from '../hooks/useClientFavorites';
 
 interface ProductSpecsProps {
   product: JewelryProduct;
   onUpdateNotes: (newNotes: string) => void;
-  onOpenAuditHistory: () => void;
 }
 
-export const ProductSpecs: React.FC<ProductSpecsProps> = ({
-  product,
-  onUpdateNotes,
-  onOpenAuditHistory,
-}) => {
+export const ProductSpecs: React.FC<ProductSpecsProps> = ({ product, onUpdateNotes }) => {
   const { isAdmin } = useAdmin();
+  const { t, statusLabel } = useLanguage();
+  const { isFavorited, toggleFavorite } = useClientFavorites();
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesText, setNotesText] = useState(product.internalNotes);
 
@@ -221,6 +521,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
   };
 
   const formattedPrice = formatPrice(product.price, product.currency);
+  const favorited = isFavorited(product.id);
 
   return (
     <section className="lg:col-span-5 px-4 md:px-0 flex flex-col gap-8">
@@ -228,15 +529,35 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
       <div>
         <div className="flex justify-between items-center mb-2">
           <span className={`text-[12px] font-semibold tracking-widest uppercase px-3 py-1 rounded-full border ${getStatusStyle(product.status)}`}>
-            {product.status}
+            {statusLabel(product.status)}
           </span>
           <span className="text-[12px] font-semibold text-[#4d4635] uppercase tracking-wider">
-            Артикул: {product.sku}
+            {t('article')}: {product.sku}
           </span>
         </div>
-        <h2 className="text-3xl md:text-4xl lg:text-[48px] lg:leading-[56px] font-semibold text-[#1b1b1d] tracking-tight mb-1">
-          {product.name}
-        </h2>
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="text-3xl md:text-4xl lg:text-[48px] lg:leading-[56px] font-semibold text-[#1b1b1d] tracking-tight mb-1">
+            {product.name}
+          </h2>
+          {!isAdmin && (
+            <button
+              onClick={() => toggleFavorite(product.id)}
+              className={`flex-shrink-0 mt-2 p-2.5 rounded-full border transition-all active:scale-95 ${
+                favorited
+                  ? 'bg-[#ffdad6]/40 text-[#ba1a1a] border-[#ba1a1a]/30'
+                  : 'bg-white text-[#4d4635] border-[#d0c5af] hover:bg-[#f6f3f5]'
+              }`}
+              title={favorited ? t('removeFromFavorites') : t('addToFavorites')}
+            >
+              <span
+                className="material-symbols-outlined text-xl block"
+                style={{ fontVariationSettings: favorited ? "'FILL' 1" : "'FILL' 0" }}
+              >
+                favorite
+              </span>
+            </button>
+          )}
+        </div>
         <p className="text-2xl md:text-3xl text-[#735c00] font-bold tracking-tight">
           {formattedPrice}
         </p>
@@ -247,7 +568,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
         {product.goldPurity && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
             <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-              Проба металл
+              {t('specGoldPurity')}
             </p>
             <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
               {product.goldPurity}
@@ -258,10 +579,10 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
         {!!product.weightGrams && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
             <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-              Вес изделия
+              {t('specWeight')}
             </p>
             <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
-              {product.weightGrams} Грамм
+              {product.weightGrams} {t('specGrams')}
             </p>
           </div>
         )}
@@ -269,7 +590,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
         {product.stoneCarats && (
           <div className="bg-white p-4 rounded-2xl shadow-sm border border-[#d0c5af]/30 transition-all hover:shadow-md">
             <p className="text-[12px] font-semibold text-[#4d4635] mb-1 uppercase tracking-wider">
-              Караты вставки
+              {t('specStone')}
             </p>
             <p className="text-base md:text-lg font-semibold text-[#1b1b1d]">
               {product.stoneCarats}
@@ -282,13 +603,13 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
       <div className="flex flex-col gap-1">
         {product.ringSize && (
           <div className="flex justify-between items-center py-4 border-b border-[#d0c5af]/30">
-            <span className="text-base text-[#4d4635]">Размер</span>
+            <span className="text-base text-[#4d4635]">{t('specSize')}</span>
             <span className="text-base font-medium text-[#1b1b1d]">{product.ringSize}</span>
           </div>
         )}
 
         <div className="flex justify-between items-center py-4 border-b border-[#d0c5af]/30">
-          <span className="text-base text-[#4d4635]">Сертификат</span>
+          <span className="text-base text-[#4d4635]">{t('specCertificate')}</span>
           <a
             href={product.certificationUrl || 'https://www.gia.edu'}
             target="_blank"
@@ -301,19 +622,6 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
             </span>
           </a>
         </div>
-
-        <div className="flex justify-between items-center py-4 border-b border-[#d0c5af]/30">
-          <span className="text-base text-[#4d4635]">Последний аудит</span>
-          <button
-            onClick={onOpenAuditHistory}
-            className="text-base font-medium text-[#1b1b1d] hover:text-[#735c00] flex items-center gap-1 group"
-          >
-            {product.lastAudit}
-            <span className="material-symbols-outlined text-sm text-[#4d4635] group-hover:text-[#735c00]">
-              history
-            </span>
-          </button>
-        </div>
       </div>
 
       {/* Блок «Подробнее» — виден клиентам */}
@@ -322,7 +630,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-xl">notes</span>
             <h3 className="text-[12px] font-semibold uppercase tracking-wider">
-              Подробнее
+              {t('detailsHeading')}
             </h3>
           </div>
           {!isEditingNotes && isAdmin && (
@@ -364,7 +672,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({
           </div>
         ) : (
           <p className="text-sm text-[#4d4635] leading-relaxed">
-            {product.internalNotes || 'Подробное описание пока не добавлено.'}
+            {product.internalNotes || t('detailsEmpty')}
           </p>
         )}
       </div>
@@ -379,6 +687,8 @@ cat > src/components/ProductCatalog.tsx << 'AIAI_CLAUDE_EOF_MARKER'
 import React, { useState } from 'react';
 import { JewelryProduct, JewelryCategory } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
+import { useLanguage } from '../contexts/LanguageContext';
+import { useClientFavorites } from '../hooks/useClientFavorites';
 import { formatPrice } from '../utils/format';
 import { STATUS_OPTIONS, getStatusStyle } from '../utils/status';
 
@@ -400,6 +710,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   onOpenCategoryManager,
 }) => {
   const { isAdmin } = useAdmin();
+  const { t, statusLabel } = useLanguage();
+  const { isFavorited, toggleFavorite: toggleClientFavorite } = useClientFavorites();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Все');
   const [selectedStatus, setSelectedStatus] = useState<string>('Все');
@@ -435,13 +747,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#f0edef] to-white p-6 rounded-3xl border border-[#d0c5af]/30 shadow-sm">
         <div>
           <span className="text-xs font-semibold uppercase tracking-widest text-[#735c00] bg-[#735c00]/10 px-3 py-1 rounded-full">
-            Инвентарь AiAi Gold
+            {t('catalogBadge')}
           </span>
           <h1 className="text-2xl md:text-3xl font-bold text-[#1b1b1d] mt-2">
-            Каталог ювелирных изделий и драгоценностей
+            {t('catalogTitle')}
           </h1>
           <p className="text-sm text-[#4d4635] mt-1">
-            Управление, инспекция и учет изделий из золота и драгоценных камней.
+            {t('catalogSubtitle')}
           </p>
         </div>
 
@@ -451,7 +763,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             className="bg-[#735c00] text-white px-5 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#574500] transition-all shadow-md shadow-[#735c00]/20 active:scale-95 cursor-pointer"
           >
             <span className="material-symbols-outlined text-xl">add</span>
-            Добавить украшение
+            {t('addProduct')}
           </button>
         )}
       </div>
@@ -467,7 +779,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Поиск по артикулу (AU-782), названию, пробе золота, сертификату..."
+            placeholder={t('searchPlaceholder')}
             className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl border border-[#d0c5af]/50 text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] shadow-sm"
           />
           {searchQuery && (
@@ -489,7 +801,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           >
             {statuses.map((st) => (
               <option key={st} value={st}>
-                Статус: {st}
+                {t('statusPrefix')}: {st === 'Все' ? t('all') : statusLabel(st)}
               </option>
             ))}
           </select>
@@ -499,10 +811,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             onChange={(e) => setSortBy(e.target.value as any)}
             className="px-3 py-3 bg-white border border-[#d0c5af]/50 rounded-2xl text-xs md:text-sm font-semibold text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] shadow-sm"
           >
-            <option value="price-desc">Сначала дорогие</option>
-            <option value="price-asc">Сначала недорогие</option>
-            <option value="weight">По весу</option>
-            <option value="name">По названию (А-Я)</option>
+            <option value="price-desc">{t('sortPriceDesc')}</option>
+            <option value="price-asc">{t('sortPriceAsc')}</option>
+            <option value="weight">{t('sortWeight')}</option>
+            <option value="name">{t('sortName')}</option>
           </select>
         </div>
       </div>
@@ -519,7 +831,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 : 'bg-white text-[#4d4635] border border-[#d0c5af]/40 hover:bg-[#f6f3f5]'
             }`}
           >
-            {cat}
+            {cat === 'Все' ? t('all') : cat}
           </button>
         ))}
 
@@ -530,7 +842,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             title="Настройка списка категорий"
           >
             <span className="material-symbols-outlined text-base">settings</span>
-            <span>Категории</span>
+            <span>{t('categoriesManage')}</span>
           </button>
         )}
       </div>
@@ -541,9 +853,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <div className="w-16 h-16 bg-[#f0edef] rounded-full flex items-center justify-center mx-auto text-[#735c00]">
             <span className="material-symbols-outlined text-3xl">search_off</span>
           </div>
-          <h3 className="text-lg font-bold text-[#1b1b1d]">Ничего не найдено</h3>
+          <h3 className="text-lg font-bold text-[#1b1b1d]">{t('noResultsTitle')}</h3>
           <p className="text-sm text-[#4d4635] max-w-md mx-auto">
-            Попробуйте изменить поисковый запрос или сбросить фильтры категорий.
+            {t('noResultsSubtitle')}
           </p>
           <button
             onClick={() => {
@@ -553,13 +865,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             }}
             className="px-4 py-2 bg-[#735c00] text-white rounded-xl text-xs font-semibold"
           >
-            Сбросить фильтры
+            {t('resetFilters')}
           </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredProducts.map((product) => {
             const formattedPrice = formatPrice(product.price, product.currency);
+            const clientFavorited = isFavorited(product.id);
 
             return (
               <div
@@ -582,11 +895,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         product.status
                       )}`}
                     >
-                      {product.status}
+                      {statusLabel(product.status)}
                     </span>
 
-                    {/* Кнопка Избранного */}
-                    {isAdmin && (
+                    {/* Кнопка Избранного — своя для админа и для клиента */}
+                    {isAdmin ? (
                       <button
                         onClick={(e) => onToggleFavorite(product.id, e)}
                         className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all ${
@@ -599,6 +912,26 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         <span
                           className="material-symbols-outlined text-lg block"
                           style={{ fontVariationSettings: product.isFavorite ? "'FILL' 1" : "'FILL' 0" }}
+                        >
+                          favorite
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleClientFavorite(product.id);
+                        }}
+                        className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all ${
+                          clientFavorited
+                            ? 'bg-white text-[#ba1a1a] shadow-md'
+                            : 'bg-black/30 text-white hover:bg-white hover:text-[#1b1b1d]'
+                        }`}
+                        title={clientFavorited ? t('removeFromFavorites') : t('addToFavorites')}
+                      >
+                        <span
+                          className="material-symbols-outlined text-lg block"
+                          style={{ fontVariationSettings: clientFavorited ? "'FILL' 1" : "'FILL' 0" }}
                         >
                           favorite
                         </span>
@@ -627,13 +960,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div className="grid grid-cols-2 gap-2 text-xs bg-[#f6f3f5] p-2.5 rounded-xl text-[#4d4635]">
                         {product.goldPurity && (
                           <div>
-                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">Металл</span>
+                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">{t('cardMetal')}</span>
                             <span className="font-semibold text-[#1b1b1d]">{product.goldPurity}</span>
                           </div>
                         )}
                         {product.stoneCarats && (
                           <div>
-                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">Вставка</span>
+                            <span className="block text-[10px] uppercase font-medium text-[#7f7663]">{t('cardInsert')}</span>
                             <span className="font-semibold text-[#1b1b1d]">{product.stoneCarats}</span>
                           </div>
                         )}
@@ -649,7 +982,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     {product.certification}
                   </span>
                   <span className="font-semibold text-[#735c00] group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
-                    Подробнее
+                    {t('cardMore')}
                     <span className="material-symbols-outlined text-sm">chevron_right</span>
                   </span>
                 </div>
@@ -762,12 +1095,10 @@ export const EditProductModal: React.FC<EditProductModalProps> = ({
     ringSize: product?.ringSize || '16.5 (Изменяемый)',
     certification: product?.certification || 'GIA #100200',
     certificationUrl: product?.certificationUrl || 'https://www.gia.edu',
-    lastAudit: product?.lastAudit || new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }),
     internalNotes: product?.internalNotes || '',
     images: product?.images?.length ? [...product.images] : ['https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=1200&q=80'],
     isFavorite: product?.isFavorite || false,
     createdAt: product?.createdAt || new Date().toISOString(),
-    auditHistory: product?.auditHistory || [],
   });
 
   const [newCategoryInput, setNewCategoryInput] = useState('');
@@ -1430,7 +1761,6 @@ export const ShareModal: React.FC<ShareModalProps> = ({ product, isOpen, onClose
   if (product.stoneCarats) specLines.push(`Характеристика вставок: ${product.stoneCarats}`);
   if (product.ringSize) specLines.push(`Размер/Длина: ${product.ringSize}`);
   if (product.certification) specLines.push(`Сертификат: ${product.certification}`);
-  if (product.lastAudit) specLines.push(`Последний аудит: ${product.lastAudit}`);
   specLines.push(``);
   if (product.internalNotes) specLines.push(`Подробнее: ${product.internalNotes}`);
   specLines.push(`-----------------------------------------`, `AiAi Gold`);
@@ -1539,207 +1869,464 @@ export const ShareModal: React.FC<ShareModalProps> = ({ product, isOpen, onClose
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/components/ShareModal.tsx"
 mkdir -p src/components
-cat > src/components/AuditLogModal.tsx << 'AIAI_CLAUDE_EOF_MARKER'
+cat > src/components/OrderBar.tsx << 'AIAI_CLAUDE_EOF_MARKER'
 import React, { useState } from 'react';
-import { JewelryProduct, AuditRecord, StockStatus } from '../types';
-import { useAdmin } from '../contexts/AdminContext';
-import { STATUS_OPTIONS } from '../utils/status';
+import { JewelryProduct } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
+import { buildOrderMessage } from '../i18n/translations';
 
-interface AuditLogModalProps {
-  product: JewelryProduct;
-  isOpen: boolean;
-  onClose: () => void;
-  onAddAuditRecord: (record: AuditRecord) => void;
+const WHATSAPP_NUMBER = '996504401082';
+const INSTAGRAM_USERNAME = 'aiai_goldkg';
+
+interface OrderBarProps {
+  products: JewelryProduct[];
+  favoriteIds: string[];
+  onClearFavorites: () => void;
 }
 
-export const AuditLogModal: React.FC<AuditLogModalProps> = ({
-  product,
-  isOpen,
-  onClose,
-  onAddAuditRecord,
-}) => {
-  const { isAdmin } = useAdmin();
-  const [isAdding, setIsAdding] = useState(false);
-  const [inspector, setInspector] = useState('');
-  const [location, setLocation] = useState('Главный сейф - Ячейка 01');
-  const [status, setStatus] = useState<StockStatus>(product.status);
-  const [note, setNote] = useState('');
+export const OrderBar: React.FC<OrderBarProps> = ({ products, favoriteIds, onClearFavorites }) => {
+  const { lang, t } = useLanguage();
+  const [showChoices, setShowChoices] = useState(false);
+  const [copiedNotice, setCopiedNotice] = useState(false);
 
-  if (!isOpen) return null;
+  if (favoriteIds.length === 0) return null;
 
-  const handleAddSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inspector || !note) return;
+  const favoriteProducts = products.filter((p) => favoriteIds.includes(p.id));
+  const skus = favoriteProducts.map((p) => p.sku || p.name);
+  const message = buildOrderMessage(lang, skus);
 
-    const newRecord: AuditRecord = {
-      id: `aud-${Date.now()}`,
-      date: new Date().toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' }),
-      inspector,
-      location,
-      status,
-      note,
-    };
+  const sendWhatsApp = () => {
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
+    setShowChoices(false);
+  };
 
-    onAddAuditRecord(newRecord);
-    setInspector('');
-    setNote('');
-    setIsAdding(false);
+  const sendInstagram = async () => {
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopiedNotice(true);
+      setTimeout(() => setCopiedNotice(false), 4000);
+    } catch {
+      // clipboard may be unavailable — still open Instagram
+    }
+    window.open(`https://ig.me/m/${INSTAGRAM_USERNAME}`, '_blank');
+    setShowChoices(false);
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[85vh] flex flex-col overflow-hidden border border-[#d0c5af]/40">
-        {/* Шапка */}
-        <div className="px-6 py-5 border-b border-[#f0edef] flex justify-between items-center bg-[#fcf8fb]">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#735c00]/10 text-[#735c00] rounded-xl">
-              <span className="material-symbols-outlined text-2xl">verified</span>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-[#1b1b1d]">История аудита в хранилище</h2>
-              <p className="text-xs text-[#4d4635]">{product.name} ({product.sku})</p>
-            </div>
+    <div className="fixed bottom-0 left-0 w-full p-4 sm:p-6 glass-effect z-40 border-t border-[#d0c5af]/30 shadow-2xl">
+      <div className="max-w-screen-xl mx-auto">
+        {copiedNotice && (
+          <div className="mb-2 text-xs text-center bg-[#735c00]/10 text-[#735c00] rounded-xl py-2 px-3">
+            {t('instagramCopied')}
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-[#eae7ea] text-[#4d4635]"
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
+        )}
 
-        {/* Контент */}
-        <div className="p-6 overflow-y-auto flex-1 space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-[#735c00]">
-              Журнал проверок ({product.auditHistory.length})
-            </h3>
-            {!isAdding && isAdmin && (
-              <button
-                onClick={() => setIsAdding(true)}
-                className="px-3 py-1.5 bg-[#735c00] text-white rounded-xl text-xs font-semibold hover:bg-[#574500] flex items-center gap-1"
-              >
-                <span className="material-symbols-outlined text-sm">add</span>
-                Внести новый аудит
-              </button>
-            )}
+        {showChoices ? (
+          <div className="flex gap-3 items-center">
+            <span className="text-sm font-medium text-[#4d4635] hidden sm:block">
+              {t('chooseWhere')}
+            </span>
+            <button
+              onClick={sendWhatsApp}
+              className="flex-1 sm:flex-none bg-[#25D366] text-white px-5 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-lg"
+            >
+              <span className="material-symbols-outlined text-xl">chat</span>
+              {t('whatsapp')}
+            </button>
+            <button
+              onClick={sendInstagram}
+              className="flex-1 sm:flex-none bg-gradient-to-tr from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white px-5 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 active:scale-[0.98] transition-all shadow-lg"
+            >
+              <span className="material-symbols-outlined text-xl">photo_camera</span>
+              {t('instagram')}
+            </button>
+            <button
+              onClick={() => setShowChoices(false)}
+              className="p-3.5 rounded-2xl border border-[#d0c5af] text-[#4d4635] hover:bg-[#eae7ea]"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
           </div>
-
-          {/* Форма нового аудита */}
-          {isAdding && (
-            <form onSubmit={handleAddSubmit} className="bg-[#f6f3f5] p-4 rounded-2xl border border-[#d0c5af] space-y-3">
-              <h4 className="text-xs font-bold text-[#1b1b1d] uppercase">Запись результатов проверки</h4>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-[#4d4635] uppercase mb-1">
-                    ФИО Аудитора / Эксперта
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={inspector}
-                    onChange={(e) => setInspector(e.target.value)}
-                    placeholder="например, М. Лоран"
-                    className="w-full px-3 py-1.5 rounded-xl border border-[#d0c5af] text-xs bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-[#4d4635] uppercase mb-1">
-                    Локация / Сейф
-                  </label>
-                  <input
-                    type="text"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="например, Салон Женева"
-                    className="w-full px-3 py-1.5 rounded-xl border border-[#d0c5af] text-xs bg-white"
-                  />
-                </div>
+        ) : (
+          <div className="flex gap-3 items-center">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <span className="flex items-center justify-center w-9 h-9 rounded-full bg-[#ba1a1a]/10 text-[#ba1a1a] flex-shrink-0">
+                <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
+                  favorite
+                </span>
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs text-[#4d4635] truncate">{t('orderCount')}</p>
+                <p className="text-sm font-bold text-[#1b1b1d]">{favoriteIds.length}</p>
               </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-[#4d4635] uppercase mb-1">
-                  Статус при инспекции
-                </label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as StockStatus)}
-                  className="w-full px-3 py-1.5 rounded-xl border border-[#d0c5af] text-xs bg-white"
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-[#4d4635] uppercase mb-1">
-                  Результаты и примечания
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="например, Вес подтвержден, крепление камня в норме."
-                  className="w-full px-3 py-1.5 rounded-xl border border-[#d0c5af] text-xs bg-white"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setIsAdding(false)}
-                  className="px-3 py-1 text-xs text-[#4d4635]"
-                >
-                  Отмена
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 bg-[#735c00] text-white rounded-xl text-xs font-semibold"
-                >
-                  Сохранить
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Список истории аудитов */}
-          {product.auditHistory.length === 0 ? (
-            <p className="text-sm text-[#4d4635] italic">Записей об аудите пока нет.</p>
-          ) : (
-            <div className="space-y-3">
-              {product.auditHistory.map((rec) => (
-                <div
-                  key={rec.id}
-                  className="bg-white p-4 rounded-2xl border border-[#d0c5af]/30 shadow-sm space-y-2"
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <span className="text-xs font-bold text-[#1b1b1d]">{rec.inspector}</span>
-                      <span className="text-xs text-[#4d4635] block">{rec.location}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs font-semibold text-[#735c00]">{rec.date}</span>
-                      <span className="block text-[10px] font-bold uppercase text-[#4d4635]">{rec.status}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-[#4d4635] bg-[#f6f3f5] p-2.5 rounded-xl italic">
-                    "{rec.note}"
-                  </p>
-                </div>
-              ))}
             </div>
-          )}
-        </div>
+            <button
+              onClick={onClearFavorites}
+              className="p-2 text-[#4d4635] hover:bg-[#eae7ea] rounded-full"
+              title={t('removeFromFavorites')}
+            >
+              <span className="material-symbols-outlined">delete_outline</span>
+            </button>
+            <button
+              onClick={() => setShowChoices(true)}
+              className="bg-[#735c00] text-white px-6 py-3.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-[#574500] active:scale-[0.98] transition-all shadow-lg shadow-[#735c00]/25"
+            >
+              <span className="material-symbols-outlined text-xl">send</span>
+              {t('orderButton')}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 AIAI_CLAUDE_EOF_MARKER
-echo "  ok: src/components/AuditLogModal.tsx"
+echo "  ok: src/components/OrderBar.tsx"
+mkdir -p src/contexts
+cat > src/contexts/LanguageContext.tsx << 'AIAI_CLAUDE_EOF_MARKER'
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { Lang, t as translate, statusLabel as statusLabelFor } from '../i18n/translations';
+
+const STORAGE_KEY = 'aiaigold_lang';
+
+function detectDefaultLang(): Lang {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved === 'ru' || saved === 'ky' || saved === 'en') return saved;
+  } catch {
+    // localStorage unavailable — fall through to default
+  }
+  return 'ru';
+}
+
+interface LanguageContextValue {
+  lang: Lang;
+  setLang: (lang: Lang) => void;
+  t: (key: string) => string;
+  statusLabel: (status: string) => string;
+}
+
+const LanguageContext = createContext<LanguageContextValue>({
+  lang: 'ru',
+  setLang: () => {},
+  t: (key) => key,
+  statusLabel: (status) => status,
+});
+
+export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [lang, setLangState] = useState<Lang>(detectDefaultLang);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, lang);
+    } catch {
+      // ignore write failures (e.g. private browsing)
+    }
+  }, [lang]);
+
+  const setLang = (next: Lang) => setLangState(next);
+
+  return (
+    <LanguageContext.Provider
+      value={{
+        lang,
+        setLang,
+        t: (key: string) => translate(lang, key),
+        statusLabel: (status: string) => statusLabelFor(lang, status),
+      }}
+    >
+      {children}
+    </LanguageContext.Provider>
+  );
+};
+
+export function useLanguage() {
+  return useContext(LanguageContext);
+}
+
+AIAI_CLAUDE_EOF_MARKER
+echo "  ok: src/contexts/LanguageContext.tsx"
+mkdir -p src/hooks
+cat > src/hooks/useClientFavorites.ts << 'AIAI_CLAUDE_EOF_MARKER'
+import { useCallback, useEffect, useState } from 'react';
+
+const STORAGE_KEY = 'aiaigold_client_favorites';
+
+function readStored(): string[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStored(ids: string[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+  } catch {
+    // ignore write failures (e.g. private browsing)
+  }
+}
+
+/** Lets customers (no login required) mark items they're interested in,
+ * so they can send a single order request for everything at once. */
+export function useClientFavorites() {
+  const [favoriteIds, setFavoriteIds] = useState<string[]>(() => readStored());
+
+  useEffect(() => {
+    function onStorage(e: StorageEvent) {
+      if (e.key === STORAGE_KEY) setFavoriteIds(readStored());
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  const isFavorited = useCallback((id: string) => favoriteIds.includes(id), [favoriteIds]);
+
+  const toggleFavorite = useCallback((id: string) => {
+    setFavoriteIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      writeStored(next);
+      return next;
+    });
+  }, []);
+
+  const clearFavorites = useCallback(() => {
+    setFavoriteIds([]);
+    writeStored([]);
+  }, []);
+
+  return { favoriteIds, isFavorited, toggleFavorite, clearFavorites };
+}
+
+AIAI_CLAUDE_EOF_MARKER
+echo "  ok: src/hooks/useClientFavorites.ts"
+mkdir -p src/i18n
+cat > src/i18n/translations.ts << 'AIAI_CLAUDE_EOF_MARKER'
+export type Lang = 'ru' | 'ky' | 'en';
+
+export const LANGUAGES: { code: Lang; label: string }[] = [
+  { code: 'ru', label: 'РУ' },
+  { code: 'ky', label: 'КЫ' },
+  { code: 'en', label: 'EN' },
+];
+
+type Dict = Record<string, string>;
+
+const ru: Dict = {
+  catalogTab: 'Каталог',
+  detailsTab: 'Характеристики',
+  backToCatalog: 'Вернуться в каталог',
+  share: 'Поделиться спецификацией',
+  moreOptions: 'Дополнительные опции',
+  actionsFor: 'Действия',
+  exportPassport: 'Экспорт VIP-паспорта',
+  checkCertificate: 'Проверить сертификат',
+  adminLoggedIn: 'Вы вошли как администратор',
+  adminLogin: 'Вход для администратора',
+
+  catalogBadge: 'AiAi Gold',
+  catalogTitle: 'Каталог ювелирных изделий и драгоценностей',
+  catalogSubtitle: 'Ознакомьтесь с нашей коллекцией изделий из золота и драгоценных камней.',
+  addProduct: 'Добавить украшение',
+  searchPlaceholder: 'Поиск по артикулу, названию, пробе золота, сертификату...',
+  statusPrefix: 'Статус',
+  all: 'Все',
+  sortPriceDesc: 'Сначала дорогие',
+  sortPriceAsc: 'Сначала недорогие',
+  sortWeight: 'По весу',
+  sortName: 'По названию (А-Я)',
+  categoriesManage: 'Категории',
+  noResultsTitle: 'Ничего не найдено',
+  noResultsSubtitle: 'Попробуйте изменить поисковый запрос или сбросить фильтры категорий.',
+  resetFilters: 'Сбросить фильтры',
+  cardMetal: 'Металл',
+  cardInsert: 'Вставка',
+  cardMore: 'Подробнее',
+  addToFavorites: 'Добавить в избранное',
+  removeFromFavorites: 'Убрать из избранного',
+
+  article: 'Артикул',
+  specGoldPurity: 'Проба металл',
+  specWeight: 'Вес изделия',
+  specGrams: 'Грамм',
+  specStone: 'Караты вставки',
+  specSize: 'Размер',
+  specCertificate: 'Сертификат',
+  detailsHeading: 'Подробнее',
+  detailsEmpty: 'Подробное описание пока не добавлено.',
+
+  orderCount: 'В избранном',  orderButton: 'Заказать',
+  chooseWhere: 'Куда отправить заявку?',
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
+  instagramCopied: 'Текст сообщения скопирован — вставьте его в переписке Instagram',
+  loading: 'Загрузка каталога…',
+};
+
+const ky: Dict = {
+  catalogTab: 'Каталог',
+  detailsTab: 'Мүнөздөмөлөр',
+  backToCatalog: 'Каталогго кайтуу',
+  share: 'Мүнөздөмөнү бөлүшүү',
+  moreOptions: 'Кошумча опциялар',
+  actionsFor: 'Аракеттер',
+  exportPassport: 'VIP-паспортту экспорттоо',
+  checkCertificate: 'Сертификатты текшерүү',
+  adminLoggedIn: 'Сиз администратор катары кирдиңиз',
+  adminLogin: 'Администратор үчүн кирүү',
+
+  catalogBadge: 'AiAi Gold',
+  catalogTitle: 'Зер буюмдар жана асыл таштар каталогу',
+  catalogSubtitle: 'Алтын жана асыл таштардан жасалган буюмдар жыйнагыбыз менен таанышыңыз.',
+  addProduct: 'Буюм кошуу',
+  searchPlaceholder: 'Артикул, аталышы, алтын сынамасы, сертификат боюнча издөө...',
+  statusPrefix: 'Статус',
+  all: 'Баары',
+  sortPriceDesc: 'Кымбаттан баштап',
+  sortPriceAsc: 'Арзандан баштап',
+  sortWeight: 'Салмагы боюнча',
+  sortName: 'Аталышы боюнча (А-Я)',
+  categoriesManage: 'Категориялар',
+  noResultsTitle: 'Эч нерсе табылган жок',
+  noResultsSubtitle: 'Издөө сурамын өзгөртүп же категория чыпкаларын тазалап көрүңүз.',
+  resetFilters: 'Чыпкаларды тазалоо',
+  cardMetal: 'Метал',
+  cardInsert: 'Кыстырма',
+  cardMore: 'Толугураак',
+  addToFavorites: 'Тандалмаларга кошуу',
+  removeFromFavorites: 'Тандалмалардан алып салуу',
+
+  article: 'Артикул',
+  specGoldPurity: 'Метал сынамасы',
+  specWeight: 'Буюмдун салмагы',
+  specGrams: 'Грамм',
+  specStone: 'Кыстырманын каратасы',
+  specSize: 'Өлчөм',
+  specCertificate: 'Сертификат',
+  detailsHeading: 'Толугураак',
+  detailsEmpty: 'Толук баяндама азырынча кошулган жок.',
+
+  orderCount: 'Тандалмаларда',
+  orderButton: 'Буйрутма берүү',
+  chooseWhere: 'Кайда жөнөтөбүз?',
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
+  instagramCopied: 'Билдирүү тексти көчүрүлдү — Instagram баракчасына чаптап жөнөтүңүз',
+  loading: 'Каталог жүктөлүүдө…',
+};
+
+const en: Dict = {
+  catalogTab: 'Catalog',
+  detailsTab: 'Details',
+  backToCatalog: 'Back to catalog',
+  share: 'Share specification',
+  moreOptions: 'More options',
+  actionsFor: 'Actions',
+  exportPassport: 'Export VIP passport',
+  checkCertificate: 'Verify certificate',
+  adminLoggedIn: 'Signed in as admin',
+  adminLogin: 'Admin sign-in',
+
+  catalogBadge: 'AiAi Gold',
+  catalogTitle: 'Jewelry & Gemstone Catalog',
+  catalogSubtitle: 'Browse our collection of gold and gemstone jewelry.',
+  addProduct: 'Add item',
+  searchPlaceholder: 'Search by SKU, name, gold purity, certificate...',
+  statusPrefix: 'Status',
+  all: 'All',
+  sortPriceDesc: 'Price: high to low',
+  sortPriceAsc: 'Price: low to high',
+  sortWeight: 'By weight',
+  sortName: 'By name (A-Z)',
+  categoriesManage: 'Categories',
+  noResultsTitle: 'Nothing found',
+  noResultsSubtitle: 'Try a different search or reset the category filters.',
+  resetFilters: 'Reset filters',
+  cardMetal: 'Metal',
+  cardInsert: 'Stone',
+  cardMore: 'Details',
+  addToFavorites: 'Add to favorites',
+  removeFromFavorites: 'Remove from favorites',
+
+  article: 'SKU',
+  specGoldPurity: 'Metal purity',
+  specWeight: 'Weight',
+  specGrams: 'grams',
+  specStone: 'Stone carats',
+  specSize: 'Size',
+  specCertificate: 'Certificate',
+  detailsHeading: 'Details',
+  detailsEmpty: 'No detailed description yet.',
+
+  orderCount: 'In favorites',
+  orderButton: 'Order',
+  chooseWhere: 'Where should we send your request?',
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
+  instagramCopied: 'Message copied — paste it into your Instagram DM',
+  loading: 'Loading catalog…',
+};
+
+const DICTS: Record<Lang, Dict> = { ru, ky, en };
+
+export function t(lang: Lang, key: string): string {
+  return DICTS[lang]?.[key] ?? DICTS.ru[key] ?? key;
+}
+
+/** Localized labels for the stored (Russian) status values. */
+const STATUS_LABELS: Record<Lang, Record<string, string>> = {
+  ru: {
+    'ПОД ЗАКАЗ': 'ПОД ЗАКАЗ',
+    'В НАЛИЧИИ': 'В НАЛИЧИИ',
+    'ПРОДАНО': 'ПРОДАНО',
+    'РЕЗЕРВИРОВАНО': 'РЕЗЕРВИРОВАНО',
+    'В ПУТИ': 'В ПУТИ',
+  },
+  ky: {
+    'ПОД ЗАКАЗ': 'ЗАКАЗ МЕНЕН',
+    'В НАЛИЧИИ': 'БАР',
+    'ПРОДАНО': 'САТЫЛДЫ',
+    'РЕЗЕРВИРОВАНО': 'БРОНДОЛДУ',
+    'В ПУТИ': 'ЖОЛДО',
+  },
+  en: {
+    'ПОД ЗАКАЗ': 'MADE TO ORDER',
+    'В НАЛИЧИИ': 'IN STOCK',
+    'ПРОДАНО': 'SOLD',
+    'РЕЗЕРВИРОВАНО': 'RESERVED',
+    'В ПУТИ': 'IN TRANSIT',
+  },
+};
+
+export function statusLabel(lang: Lang, status: string): string {
+  return STATUS_LABELS[lang]?.[status] ?? status;
+}
+
+/** Builds the pre-filled order message for WhatsApp / Instagram,
+ * in whichever language the site is currently displayed in. */
+export function buildOrderMessage(lang: Lang, skus: string[]): string {
+  const list = skus.join(', ');
+  if (lang === 'ky') {
+    return skus.length === 1
+      ? `Саламатсызбы! Мага бул буюм кызык болду (артикул: ${list}). Ушул буюм боюнча багыт берип, буйрутма таза алсаңыз болобу?`
+      : `Саламатсызбы! Мага бул буюмдар кызык болду (артикулдар: ${list}). Ушулар боюнча багыт берип, буйрутма таза алсаңыз болобу?`;
+  }
+  if (lang === 'en') {
+    return skus.length === 1
+      ? `Hello! I'm interested in this item (SKU: ${list}). Could you tell me more about it and help me place an order?`
+      : `Hello! I'm interested in these items (SKUs: ${list}). Could you tell me more about them and help me place an order?`;
+  }
+  return skus.length === 1
+    ? `Здравствуйте! Меня заинтересовало изделие (артикул: ${list}). Могли бы вы сориентировать меня по нему и оформить заказ?`
+    : `Здравствуйте! Меня заинтересовали изделия (артикулы: ${list}). Могли бы вы сориентировать меня по ним и оформить заказ?`;
+}
+
+AIAI_CLAUDE_EOF_MARKER
+echo "  ok: src/i18n/translations.ts"
 mkdir -p src/utils
 cat > src/utils/status.ts << 'AIAI_CLAUDE_EOF_MARKER'
 import { StockStatus } from '../types';
@@ -1791,4 +2378,4 @@ export function isVideoSrc(src: string): boolean {
 
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/utils/format.ts"
-echo "Готово. Теперь: git add . && git commit -m \"fix\" && git push"
+echo "Готово. Теперь: git add -A && git commit -m \"update\" && git push"
