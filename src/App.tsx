@@ -102,7 +102,7 @@ export default function App() {
     if (trimmed && !categories.includes(trimmed)) {
       const updated = [...categories, trimmed];
       setCategories(updated);
-      saveCategoriesRemote(updated, categoryCovers).catch((e) => setConnectionError(String(e)));
+      saveCategoriesRemote(updated).catch((e) => setConnectionError(String(e)));
     }
   };
 
@@ -113,7 +113,8 @@ export default function App() {
     delete nextCovers[catToDelete];
     setCategories(updatedCategories);
     setCategoryCovers(nextCovers);
-    saveCategoriesRemote(updatedCategories, nextCovers).catch((e) => setConnectionError(String(e)));
+    saveCategoriesRemote(updatedCategories).catch((e) => setConnectionError(String(e)));
+    saveCategoryCoverRemote(catToDelete, null).catch((e) => setConnectionError(String(e)));
 
     const affected = products
       .filter((p) => p.category === catToDelete)
@@ -132,9 +133,7 @@ export default function App() {
     if (coverSrc) next[categoryName] = coverSrc;
     else delete next[categoryName];
     setCategoryCovers(next);
-    saveCategoryCoverRemote(categoryName, coverSrc, categories, categoryCovers).catch((e) =>
-      setConnectionError(String(e))
-    );
+    saveCategoryCoverRemote(categoryName, coverSrc).catch((e) => setConnectionError(String(e)));
   };
 
   const handleSaveHero = (settings: HeroSettings) => {
@@ -329,4 +328,3 @@ export default function App() {
     </div>
   );
 }
-

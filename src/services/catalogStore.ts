@@ -4,6 +4,8 @@ import {
   getDocs,
   onSnapshot,
   setDoc,
+  updateDoc,
+  deleteField,
   deleteDoc,
   writeBatch,
 } from 'firebase/firestore';
@@ -111,32 +113,33 @@ export async function deleteProductRemote(productId: string) {
   await deleteDoc(doc(db, PRODUCTS_COLLECTION, productId));
 }
 
-export async function saveCategoriesRemote(
-  categories: string[],
-  covers?: CategoryCovers
-) {
-  const payload: { list: string[]; covers?: CategoryCovers } = { list: categories };
-  if (covers !== undefined) {
-    const pruned: CategoryCovers = {};
-    categories.forEach((name) => {
-      if (covers[name]) pruned[name] = covers[name];
-    });
-    payload.covers = pruned;
-  }
-  await setDoc(categoriesDocRef, payload, { merge: true });
+/** Persists only the category list. Never touches `covers` — cover images
+ * are written field-by-field via saveCategoryCoverRemote below, so this
+ * can't accidentally wipe a cover based on a stale local snapshot. */
+export async function saveCategoriesRemote(categories: string[]) {
+  await setDoc(categoriesDocRef, { list: categories }, { merge: true });
 }
 
-/** Update cover (photo or video data URL) for one category. */
+/** Sets or clears the cover for exactly one category, touching only that
+ * one nested field (`covers.<name>`) — safe to call from multiple tabs/
+ * devices without needing to know the rest of the covers map. */
 export async function saveCategoryCoverRemote(
   categoryName: string,
-  coverSrc: string | null,
-  allCategories: string[],
-  currentCovers: CategoryCovers
+  coverSrc: string | null
 ) {
-  const next = { ...currentCovers };
-  if (coverSrc) next[categoryName] = coverSrc;
-  else delete next[categoryName];
-  await saveCategoriesRemote(allCategories, next);
+  const field = `covers.${categoryName}`;
+  try {
+    await updateDoc(categoriesDocRef, {
+      [field]: coverSrc ? coverSrc : deleteField(),
+    });
+  } catch {
+    // Document (or the `covers` map) doesn't exist yet — create it.
+    await setDoc(
+      categoriesDocRef,
+      { covers: coverSrc ? { [categoryName]: coverSrc } : {} },
+      { merge: true }
+    );
+  }
 }
 
 /** Overwrites the home hero settings (cover media + captions). */
@@ -154,7 +157,16 @@ export async function seedIfEmpty(
     initialProducts.forEach((p) =>
       batch.set(doc(db, PRODUCTS_COLLECTION, p.id), p)
     );
-    batch.set(doc(db, 'meta', 'categories'), { list: initialCategories, covers: {} });
     await batch.commit();
+  }
+
+  // Seed the category list separately, and only if meta/categories doesn't
+  // exist yet — merge:true here still would never remove an existing
+  // `covers` map, but we skip entirely once the doc is already there so a
+  // re-seed (e.g. after deleting all products) can't reset the list either.
+  const categoriesSnap = await getDocs(collection(db, 'meta'));
+  const hasCategoriesDoc = categoriesSnap.docs.some((d) => d.id === 'categories');
+  if (!hasCategoriesDoc) {
+    await setDoc(doc(db, 'meta', 'categories'), { list: initialCategories }, { merge: true });
   }
 }
