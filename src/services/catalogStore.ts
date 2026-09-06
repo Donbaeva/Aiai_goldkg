@@ -14,8 +14,26 @@ const PRODUCTS_COLLECTION = 'products';
 const LOCAL_PRODUCTS_KEY = 'aiaigold_local_products';
 const LOCAL_CATEGORIES_KEY = 'aiaigold_local_categories';
 const LOCAL_COVERS_KEY = 'aiaigold_local_category_covers';
+const LOCAL_HERO_KEY = 'aiaigold_local_hero';
 
 export type CategoryCovers = Record<string, string>;
+
+export interface HeroCaptions {
+  ru: string;
+  ky: string;
+  en: string;
+}
+
+export interface HeroSettings {
+  /** Photo or video data URL. Empty string = use the default fallback image. */
+  media: string;
+  captions: HeroCaptions;
+}
+
+const DEFAULT_HERO_SETTINGS: HeroSettings = {
+  media: '',
+  captions: { ru: '', ky: '', en: '' },
+};
 
 export interface CategoryData {
   names: string[];
@@ -67,9 +85,32 @@ function writeLocalCovers(covers: CategoryCovers) {
   localStorage.setItem(LOCAL_COVERS_KEY, JSON.stringify(covers));
 }
 
+function readLocalHero(): HeroSettings {
+  try {
+    const raw = localStorage.getItem(LOCAL_HERO_KEY);
+    if (!raw) return DEFAULT_HERO_SETTINGS;
+    const parsed = JSON.parse(raw);
+    return {
+      media: typeof parsed.media === 'string' ? parsed.media : '',
+      captions: {
+        ru: parsed.captions?.ru || '',
+        ky: parsed.captions?.ky || '',
+        en: parsed.captions?.en || '',
+      },
+    };
+  } catch {
+    return DEFAULT_HERO_SETTINGS;
+  }
+}
+
+function writeLocalHero(settings: HeroSettings) {
+  localStorage.setItem(LOCAL_HERO_KEY, JSON.stringify(settings));
+}
+
 const localListeners = {
   products: new Set<(products: JewelryProduct[]) => void>(),
   categories: new Set<(data: CategoryData) => void>(),
+  hero: new Set<(settings: HeroSettings) => void>(),
 };
 
 function notifyLocalProducts() {
@@ -220,6 +261,49 @@ export async function saveCategoryCoverRemote(
   await saveCategoriesRemote(allCategories, next);
 }
 
+/** Subscribes to live updates of the homepage hero (cover photo/video + caption). */
+export function subscribeToHeroSettings(
+  onChange: (settings: HeroSettings) => void,
+  onError?: (err: unknown) => void
+) {
+  if (!db || !isFirebaseConfigured) {
+    onChange(readLocalHero());
+    localListeners.hero.add(onChange);
+    return () => {
+      localListeners.hero.delete(onChange);
+    };
+  }
+
+  return onSnapshot(
+    doc(db, 'meta', 'hero'),
+    (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        onChange({
+          media: typeof data.media === 'string' ? data.media : '',
+          captions: {
+            ru: data.captions?.ru || '',
+            ky: data.captions?.ky || '',
+            en: data.captions?.en || '',
+          },
+        });
+      } else {
+        onChange(DEFAULT_HERO_SETTINGS);
+      }
+    },
+    onError
+  );
+}
+
+export async function saveHeroSettingsRemote(settings: HeroSettings) {
+  if (!db || !isFirebaseConfigured) {
+    writeLocalHero(settings);
+    localListeners.hero.forEach((cb) => cb(settings));
+    return;
+  }
+  await setDoc(doc(db, 'meta', 'hero'), settings);
+}
+
 export async function seedIfEmpty(
   initialProducts: JewelryProduct[],
   initialCategories: string[]
@@ -246,3 +330,4 @@ export async function seedIfEmpty(
     await batch.commit();
   }
 }
+

@@ -1,15 +1,19 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { JewelryProduct } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAdmin } from '../contexts/AdminContext';
 import { formatPrice, isVideoSrc } from '../utils/format';
-import { WHATSAPP_NUMBER, INSTAGRAM_USERNAME, PHONE_NUMBER, PHONE_HREF } from '../config';
-import { CategoryCovers } from '../services/catalogStore';
-import { MediaFrame, useHeroMedia } from './MediaFrame';
+import { WHATSAPP_NUMBER, INSTAGRAM_USERNAME, PHONE_NUMBER, PHONE_HREF, HERO_FALLBACK_IMAGE } from '../config';
+import { CategoryCovers, HeroSettings } from '../services/catalogStore';
+import { readVideoFile, resizeImageFile } from '../utils/media';
+import { MediaFrame } from './MediaFrame';
 
 interface HomePageProps {
   products: JewelryProduct[];
   categories: string[];
   categoryCovers: CategoryCovers;
+  heroSettings: HeroSettings;
+  onSaveHero: (settings: HeroSettings) => void;
   onShopNow: () => void;
   onSelectCategory: (category: string) => void;
   onSelectProduct: (product: JewelryProduct) => void;
@@ -19,12 +23,81 @@ export const HomePage: React.FC<HomePageProps> = ({
   products,
   categories,
   categoryCovers,
+  heroSettings,
+  onSaveHero,
   onShopNow,
   onSelectCategory,
   onSelectProduct,
 }) => {
-  const { t } = useLanguage();
-  const hero = useHeroMedia();
+  const { lang, t } = useLanguage();
+  const { isAdmin } = useAdmin();
+
+  // Parallax: track scroll position, apply a slower vertical shift to the hero media.
+  const [scrollY, setScrollY] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        setScrollY(window.scrollY);
+        raf = 0;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  // Admin hero editor
+  const [isEditingHero, setIsEditingHero] = useState(false);
+  const [heroBusy, setHeroBusy] = useState(false);
+  const [heroError, setHeroError] = useState<string | null>(null);
+  const [captionDrafts, setCaptionDrafts] = useState(heroSettings.captions);
+  const heroPhotoRef = useRef<HTMLInputElement>(null);
+  const heroVideoRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setCaptionDrafts(heroSettings.captions);
+  }, [heroSettings.captions]);
+
+  const handleHeroPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setHeroError(null);
+    setHeroBusy(true);
+    try {
+      const src = await resizeImageFile(file, 2000, 0.85);
+      onSaveHero({ ...heroSettings, media: src });
+    } catch (err) {
+      setHeroError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setHeroBusy(false);
+    }
+  };
+
+  const handleHeroVideo = async (file: File | undefined) => {
+    if (!file) return;
+    setHeroError(null);
+    setHeroBusy(true);
+    try {
+      const src = await readVideoFile(file);
+      onSaveHero({ ...heroSettings, media: src });
+    } catch (err) {
+      setHeroError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setHeroBusy(false);
+    }
+  };
+
+  const saveCaptions = () => {
+    onSaveHero({ ...heroSettings, captions: captionDrafts });
+    setIsEditingHero(false);
+  };
+
+  const heroSrc = heroSettings.media || HERO_FALLBACK_IMAGE;
+  const heroIsVideo = isVideoSrc(heroSrc);
+  const heroCaption = heroSettings.captions[lang] || t('homeHeroTitle');
 
   const featured = products.filter((p) => p.status !== 'ПРОДАНО').slice(0, 4);
   const whatsappHref = `https://wa.me/${WHATSAPP_NUMBER}`;
@@ -40,23 +113,24 @@ export const HomePage: React.FC<HomePageProps> = ({
       </div>
 
       <section className="relative h-[72vh] min-h-[420px] max-h-[820px] overflow-hidden bg-[#1a1a1a]">
-        {hero.kind === 'video' ? (
-          <video
-            key={hero.src}
-            src={hero.src}
-            className="absolute inset-0 w-full h-full object-cover"
-            muted
-            loop
-            autoPlay
-            playsInline
-          />
-        ) : (
-          <img
-            src={hero.src}
-            alt="AiAi Gold"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        )}
+        <div
+          className="absolute left-0 w-full h-[130%] -top-[15%]"
+          style={{ transform: `translateY(${scrollY * 0.25}px)` }}
+        >
+          {heroIsVideo ? (
+            <video
+              key={heroSrc}
+              src={heroSrc}
+              className="w-full h-full object-cover"
+              muted
+              loop
+              autoPlay
+              playsInline
+            />
+          ) : (
+            <img src={heroSrc} alt="AiAi Gold" className="w-full h-full object-cover" />
+          )}
+        </div>
         <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/25 to-black/55" />
 
         <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-6">
@@ -64,7 +138,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             AiAi&nbsp;Gold
           </p>
           <h1 className="font-brand text-4xl md:text-6xl lg:text-7xl text-white font-medium mt-4 mb-5 max-w-3xl leading-[1.1] animate-fade-up-delay">
-            {t('homeHeroTitle')}
+            {heroCaption}
           </h1>
           <p className="text-sm md:text-base text-white/85 font-light max-w-lg leading-relaxed mb-10 animate-fade-up-delay">
             {t('homeHeroText')}
@@ -76,6 +150,111 @@ export const HomePage: React.FC<HomePageProps> = ({
             {t('homeHeroCta')}
           </button>
         </div>
+
+        {isAdmin && (
+          <div className="absolute bottom-4 right-4 z-20">
+            {!isEditingHero ? (
+              <button
+                onClick={() => setIsEditingHero(true)}
+                className="flex items-center gap-2 bg-black/50 hover:bg-black/70 text-white text-xs px-4 py-2.5 rounded-full backdrop-blur-md transition-all"
+              >
+                <span className="material-symbols-outlined text-base">edit</span>
+                Изменить обложку
+              </button>
+            ) : (
+              <div className="bg-[#f7f3eb] rounded-sm shadow-2xl border border-[#c9a227]/30 p-4 w-[min(90vw,340px)] text-left space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#6b6356] font-medium">
+                    Обложка главной
+                  </p>
+                  <button onClick={() => setIsEditingHero(false)} className="text-[#6b6356] hover:text-[#1a1a1a]">
+                    <span className="material-symbols-outlined text-lg">close</span>
+                  </button>
+                </div>
+
+                {heroError && <p className="text-xs text-[#ba1a1a]">{heroError}</p>}
+
+                <div className="flex gap-2">
+                  <input
+                    ref={heroPhotoRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleHeroPhoto(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                  <input
+                    ref={heroVideoRef}
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      handleHeroVideo(e.target.files?.[0]);
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={heroBusy}
+                    onClick={() => heroPhotoRef.current?.click()}
+                    className="flex-1 px-3 py-2 text-[10px] uppercase tracking-wider border border-[#c9a227]/40 text-[#9a7b1a] hover:bg-[#efe8da] disabled:opacity-50"
+                  >
+                    {heroBusy ? '…' : 'Фото'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={heroBusy}
+                    onClick={() => heroVideoRef.current?.click()}
+                    className="flex-1 px-3 py-2 text-[10px] uppercase tracking-wider border border-[#c9a227]/40 text-[#9a7b1a] hover:bg-[#efe8da] disabled:opacity-50"
+                  >
+                    {heroBusy ? '…' : 'Видео'}
+                  </button>
+                  {heroSettings.media && (
+                    <button
+                      type="button"
+                      onClick={() => onSaveHero({ ...heroSettings, media: '' })}
+                      className="px-3 py-2 text-[10px] uppercase tracking-wider text-[#6b6356] hover:text-[#ba1a1a]"
+                    >
+                      Убрать
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2 pt-1 border-t border-[#c9a227]/20">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-[#6b6356] font-medium pt-2">
+                    Надпись (по языкам)
+                  </p>
+                  <input
+                    value={captionDrafts.ru}
+                    onChange={(e) => setCaptionDrafts((d) => ({ ...d, ru: e.target.value }))}
+                    placeholder="RU — Создано для тебя"
+                    className="w-full px-3 py-2 bg-white border border-[#c9a227]/30 text-sm focus:outline-none focus:ring-1 focus:ring-[#c9a227]"
+                  />
+                  <input
+                    value={captionDrafts.ky}
+                    onChange={(e) => setCaptionDrafts((d) => ({ ...d, ky: e.target.value }))}
+                    placeholder="KY — Сен үчүн жаралган"
+                    className="w-full px-3 py-2 bg-white border border-[#c9a227]/30 text-sm focus:outline-none focus:ring-1 focus:ring-[#c9a227]"
+                  />
+                  <input
+                    value={captionDrafts.en}
+                    onChange={(e) => setCaptionDrafts((d) => ({ ...d, en: e.target.value }))}
+                    placeholder="EN — Made for you"
+                    className="w-full px-3 py-2 bg-white border border-[#c9a227]/30 text-sm focus:outline-none focus:ring-1 focus:ring-[#c9a227]"
+                  />
+                  <button
+                    onClick={saveCaptions}
+                    className="w-full px-4 py-2.5 bg-[#9a7b1a] text-white text-xs font-medium uppercase tracking-wider hover:bg-[#7a6214]"
+                  >
+                    Сохранить надпись
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="max-w-screen-xl mx-auto px-4 md:px-8 py-20">
@@ -276,3 +455,4 @@ export const HomePage: React.FC<HomePageProps> = ({
     </div>
   );
 };
+

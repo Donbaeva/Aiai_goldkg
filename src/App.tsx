@@ -17,16 +17,20 @@ import { useClientFavorites } from './contexts/ClientFavoritesContext';
 import {
   subscribeToProducts,
   subscribeToCategories,
+  subscribeToHeroSettings,
   saveProductRemote,
   saveProductsRemote,
   saveCategoriesRemote,
   saveCategoryCoverRemote,
+  saveHeroSettingsRemote,
   deleteProductRemote,
   seedIfEmpty,
   type CategoryCovers,
+  type HeroSettings,
 } from './services/catalogStore';
 
 const DEFAULT_CATEGORIES = ['Кольца', 'Колье и Цепи', 'Серьги', 'Браслеты', 'Жесткие браслеты'];
+const DEFAULT_HERO: HeroSettings = { media: '', captions: { ru: '', ky: '', en: '' } };
 
 export default function App() {
   const { isAdmin, adminEmail } = useAdmin();
@@ -35,6 +39,7 @@ export default function App() {
   const [products, setProducts] = useState<JewelryProduct[]>([]);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [categoryCovers, setCategoryCovers] = useState<CategoryCovers>({});
+  const [heroSettings, setHeroSettings] = useState<HeroSettings>(DEFAULT_HERO);
   const [isLoading, setIsLoading] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -72,10 +77,16 @@ export default function App() {
       (e) => setConnectionError(String(e))
     );
 
+    const unsubHero = subscribeToHeroSettings(
+      (settings) => setHeroSettings(settings),
+      (e) => setConnectionError(String(e))
+    );
+
     return () => {
       cancelled = true;
       unsubProducts();
       unsubCategories();
+      unsubHero();
     };
   }, []);
 
@@ -118,6 +129,12 @@ export default function App() {
     saveCategoryCoverRemote(categoryName, coverSrc, categories, categoryCovers).catch((e) =>
       setConnectionError(String(e))
     );
+  };
+
+  const handleSaveHero = (settings: HeroSettings) => {
+    if (!isAdmin) return;
+    setHeroSettings(settings);
+    saveHeroSettingsRemote(settings).catch((e) => setConnectionError(String(e)));
   };
 
   const selectedProduct = products.find((p) => p.id === selectedProductId) || products[0];
@@ -212,6 +229,8 @@ export default function App() {
             products={products}
             categories={categories}
             categoryCovers={categoryCovers}
+            heroSettings={heroSettings}
+            onSaveHero={handleSaveHero}
             onShopNow={() => setViewMode('catalog')}
             onSelectCategory={(cat) => {
               setPendingCategory(cat);
