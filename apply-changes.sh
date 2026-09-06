@@ -2,29 +2,6 @@
 set -e
 echo "Обновляю файлы..."
 
-mkdir -p src
-cat > src/firebase.ts << 'AIAI_CLAUDE_EOF_MARKER'
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-
-// These values come from your Firebase project settings.
-// They live in .env.local (never committed to git) — see .env.example.
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
-
-export const firebaseApp = initializeApp(firebaseConfig);
-export const db = getFirestore(firebaseApp);
-export const auth = getAuth(firebaseApp);
-AIAI_CLAUDE_EOF_MARKER
-echo "  ok: src/firebase.ts"
-
 mkdir -p src/services
 cat > src/services/catalogStore.ts << 'AIAI_CLAUDE_EOF_MARKER'
 import {
@@ -41,6 +18,7 @@ import { JewelryProduct } from '../types';
 
 const PRODUCTS_COLLECTION = 'products';
 const categoriesDocRef = doc(db, 'meta', 'categories');
+const heroDocRef = doc(db, 'meta', 'hero');
 
 export type CategoryCovers = Record<string, string>;
 
@@ -48,6 +26,13 @@ export interface CategoryData {
   names: string[];
   covers: CategoryCovers;
 }
+
+export interface HeroSettings {
+  media: string;
+  captions: { ru: string; ky: string; en: string };
+}
+
+const DEFAULT_HERO: HeroSettings = { media: '', captions: { ru: '', ky: '', en: '' } };
 
 /** Subscribes to live updates of every product. Fires immediately with
  * current data, then again whenever ANY manager changes ANY product. */
@@ -84,6 +69,32 @@ export function subscribeToCategories(
         onChange({ names, covers });
       } else {
         onChange({ names: fallback, covers: {} });
+      }
+    },
+    onError
+  );
+}
+
+/** Subscribes to live updates of the home hero (cover media + captions). */
+export function subscribeToHeroSettings(
+  onChange: (settings: HeroSettings) => void,
+  onError?: (err: unknown) => void
+) {
+  return onSnapshot(
+    heroDocRef,
+    (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as Partial<HeroSettings>;
+        onChange({
+          media: typeof data.media === 'string' ? data.media : DEFAULT_HERO.media,
+          captions: {
+            ru: data.captions?.ru ?? DEFAULT_HERO.captions.ru,
+            ky: data.captions?.ky ?? DEFAULT_HERO.captions.ky,
+            en: data.captions?.en ?? DEFAULT_HERO.captions.en,
+          },
+        });
+      } else {
+        onChange(DEFAULT_HERO);
       }
     },
     onError
@@ -134,6 +145,11 @@ export async function saveCategoryCoverRemote(
   await saveCategoriesRemote(allCategories, next);
 }
 
+/** Overwrites the home hero settings (cover media + captions). */
+export async function saveHeroSettingsRemote(settings: HeroSettings) {
+  await setDoc(heroDocRef, settings, { merge: true });
+}
+
 export async function seedIfEmpty(
   initialProducts: JewelryProduct[],
   initialCategories: string[]
@@ -151,29 +167,4 @@ export async function seedIfEmpty(
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/services/catalogStore.ts"
 
-cat > src/services/authService.ts << 'AIAI_CLAUDE_EOF_MARKER'
-import {
-  signInWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged,
-  type User,
-} from 'firebase/auth';
-import { auth } from '../firebase';
-
-/** Fires immediately with the current admin (or null), then again on every
- * sign-in/sign-out — anywhere in the app. */
-export function subscribeToAuthState(onChange: (user: User | null) => void) {
-  return onAuthStateChanged(auth, onChange);
-}
-
-export async function signInAdmin(email: string, password: string) {
-  await signInWithEmailAndPassword(auth, email, password);
-}
-
-export async function signOutAdmin() {
-  await signOut(auth);
-}
-AIAI_CLAUDE_EOF_MARKER
-echo "  ok: src/services/authService.ts"
-
-echo "Готово. Теперь: git add -A && git commit -m \"always save to Firebase\" && git push"
+echo "Готово. Теперь: git add -A && git commit -m \"restore hero settings API\" && git push"

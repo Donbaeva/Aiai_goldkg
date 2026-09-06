@@ -12,6 +12,7 @@ import { JewelryProduct } from '../types';
 
 const PRODUCTS_COLLECTION = 'products';
 const categoriesDocRef = doc(db, 'meta', 'categories');
+const heroDocRef = doc(db, 'meta', 'hero');
 
 export type CategoryCovers = Record<string, string>;
 
@@ -19,6 +20,13 @@ export interface CategoryData {
   names: string[];
   covers: CategoryCovers;
 }
+
+export interface HeroSettings {
+  media: string;
+  captions: { ru: string; ky: string; en: string };
+}
+
+const DEFAULT_HERO: HeroSettings = { media: '', captions: { ru: '', ky: '', en: '' } };
 
 /** Subscribes to live updates of every product. Fires immediately with
  * current data, then again whenever ANY manager changes ANY product. */
@@ -55,6 +63,32 @@ export function subscribeToCategories(
         onChange({ names, covers });
       } else {
         onChange({ names: fallback, covers: {} });
+      }
+    },
+    onError
+  );
+}
+
+/** Subscribes to live updates of the home hero (cover media + captions). */
+export function subscribeToHeroSettings(
+  onChange: (settings: HeroSettings) => void,
+  onError?: (err: unknown) => void
+) {
+  return onSnapshot(
+    heroDocRef,
+    (snap) => {
+      if (snap.exists()) {
+        const data = snap.data() as Partial<HeroSettings>;
+        onChange({
+          media: typeof data.media === 'string' ? data.media : DEFAULT_HERO.media,
+          captions: {
+            ru: data.captions?.ru ?? DEFAULT_HERO.captions.ru,
+            ky: data.captions?.ky ?? DEFAULT_HERO.captions.ky,
+            en: data.captions?.en ?? DEFAULT_HERO.captions.en,
+          },
+        });
+      } else {
+        onChange(DEFAULT_HERO);
       }
     },
     onError
@@ -103,6 +137,11 @@ export async function saveCategoryCoverRemote(
   if (coverSrc) next[categoryName] = coverSrc;
   else delete next[categoryName];
   await saveCategoriesRemote(allCategories, next);
+}
+
+/** Overwrites the home hero settings (cover media + captions). */
+export async function saveHeroSettingsRemote(settings: HeroSettings) {
+  await setDoc(heroDocRef, settings, { merge: true });
 }
 
 export async function seedIfEmpty(
