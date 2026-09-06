@@ -3,8 +3,9 @@ import { JewelryProduct, JewelryCategory } from '../types';
 import { useAdmin } from '../contexts/AdminContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useClientFavorites } from '../contexts/ClientFavoritesContext';
-import { formatPrice } from '../utils/format';
+import { formatPrice, isVideoSrc } from '../utils/format';
 import { STATUS_OPTIONS, getStatusStyle } from '../utils/status';
+import { MediaFrame } from './MediaFrame';
 
 interface ProductCatalogProps {
   products: JewelryProduct[];
@@ -60,15 +61,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   return (
     <div className="max-w-screen-xl mx-auto px-4 md:px-8 py-8 space-y-6">
       {/* Шапка каталога */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-[#f0edef] to-white p-6 rounded-3xl border border-[#d0c5af]/30 shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#c9a227]/25 pb-8">
         <div>
-          <span className="text-xs font-semibold uppercase tracking-widest text-[#735c00] bg-[#735c00]/10 px-3 py-1 rounded-full">
+          <span className="brand-mark text-xs text-[#9a7b1a] tracking-[0.28em]">
             {t('catalogBadge')}
           </span>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#1b1b1d] mt-2">
+          <h1 className="font-brand text-3xl md:text-4xl font-medium text-[#1a1a1a] mt-2">
             {t('catalogTitle')}
           </h1>
-          <p className="text-sm text-[#4d4635] mt-1">
+          <p className="text-sm text-[#6b6356] mt-2 font-light">
             {t('catalogSubtitle')}
           </p>
         </div>
@@ -76,7 +77,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         {isAdmin && (
           <button
             onClick={onAddNewProduct}
-            className="bg-[#735c00] text-white px-5 py-3 rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 hover:bg-[#574500] transition-all shadow-md shadow-[#735c00]/20 active:scale-95 cursor-pointer"
+            className="bg-[#9a7b1a] text-white px-5 py-3 text-xs font-medium uppercase tracking-[0.16em] flex items-center justify-center gap-2 hover:bg-[#7a6214] transition-all active:scale-95 cursor-pointer"
           >
             <span className="material-symbols-outlined text-xl">add</span>
             {t('addProduct')}
@@ -88,7 +89,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       <div className="flex flex-col lg:flex-row gap-4 justify-between items-stretch lg:items-center">
         {/* Поиск */}
         <div className="relative flex-1">
-          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#735c00]">
+          <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9a7b1a]">
             search
           </span>
           <input
@@ -96,7 +97,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t('searchPlaceholder')}
-            className="w-full pl-11 pr-4 py-3 bg-white rounded-2xl border border-[#d0c5af]/50 text-sm text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] shadow-sm"
+            className="w-full pl-11 pr-4 py-3 bg-white rounded-sm border border-[#c9a227]/30 text-sm text-[#1a1a1a] focus:outline-none focus:ring-1 focus:ring-[#c9a227]"
           />
           {searchQuery && (
             <button
@@ -113,7 +114,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3 py-3 bg-white border border-[#d0c5af]/50 rounded-2xl text-xs md:text-sm font-semibold text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] shadow-sm"
+            className="px-3 py-3 bg-white border border-[#c9a227]/30 rounded-sm text-xs md:text-sm font-medium text-[#1a1a1a] focus:outline-none focus:ring-1 focus:ring-[#c9a227]"
           >
             {statuses.map((st) => (
               <option key={st} value={st}>
@@ -125,7 +126,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="px-3 py-3 bg-white border border-[#d0c5af]/50 rounded-2xl text-xs md:text-sm font-semibold text-[#1b1b1d] focus:outline-none focus:ring-2 focus:ring-[#735c00] shadow-sm"
+            className="px-3 py-3 bg-white border border-[#c9a227]/30 rounded-sm text-xs md:text-sm font-medium text-[#1a1a1a] focus:outline-none focus:ring-1 focus:ring-[#c9a227]"
           >
             <option value="price-desc">{t('sortPriceDesc')}</option>
             <option value="price-asc">{t('sortPriceAsc')}</option>
@@ -141,10 +142,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`px-4 py-2 rounded-xl text-xs md:text-sm font-semibold whitespace-nowrap transition-all ${
+            className={`px-4 py-2 text-xs md:text-sm font-medium whitespace-nowrap transition-all tracking-wide ${
               selectedCategory === cat
-                ? 'bg-[#735c00] text-white shadow-md shadow-[#735c00]/20'
-                : 'bg-white text-[#4d4635] border border-[#d0c5af]/40 hover:bg-[#f6f3f5]'
+                ? 'bg-[#9a7b1a] text-white'
+                : 'bg-white text-[#6b6356] border border-[#c9a227]/30 hover:bg-[#efe8da]'
             }`}
           >
             {cat === 'Все' ? t('all') : cat}
@@ -154,7 +155,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         {isAdmin && (
           <button
             onClick={onOpenCategoryManager}
-            className="px-3 py-2 rounded-xl text-xs md:text-sm font-semibold whitespace-nowrap bg-[#f0edef] hover:bg-[#eae7ea] text-[#735c00] border border-[#d0c5af]/40 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer ml-auto"
+            className="px-3 py-2 text-xs md:text-sm font-medium whitespace-nowrap bg-[#efe8da] hover:bg-[#e8d5a3]/40 text-[#9a7b1a] border border-[#c9a227]/30 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer ml-auto"
             title="Настройка списка категорий"
           >
             <span className="material-symbols-outlined text-base">settings</span>
@@ -165,12 +166,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Грид товаров */}
       {filteredProducts.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center border border-[#d0c5af]/30 space-y-3">
-          <div className="w-16 h-16 bg-[#f0edef] rounded-full flex items-center justify-center mx-auto text-[#735c00]">
+        <div className="bg-white p-12 text-center border border-[#c9a227]/20 space-y-3">
+          <div className="w-16 h-16 bg-[#efe8da] rounded-full flex items-center justify-center mx-auto text-[#9a7b1a]">
             <span className="material-symbols-outlined text-3xl">search_off</span>
           </div>
-          <h3 className="text-lg font-bold text-[#1b1b1d]">{t('noResultsTitle')}</h3>
-          <p className="text-sm text-[#4d4635] max-w-md mx-auto">
+          <h3 className="font-brand text-2xl text-[#1a1a1a]">{t('noResultsTitle')}</h3>
+          <p className="text-sm text-[#6b6356] max-w-md mx-auto font-light">
             {t('noResultsSubtitle')}
           </p>
           <button
@@ -179,7 +180,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               setSelectedCategory('Все');
               setSelectedStatus('Все');
             }}
-            className="px-4 py-2 bg-[#735c00] text-white rounded-xl text-xs font-semibold"
+            className="px-4 py-2 bg-[#9a7b1a] text-white text-xs font-medium uppercase tracking-wider"
           >
             {t('resetFilters')}
           </button>
@@ -189,39 +190,44 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           {filteredProducts.map((product) => {
             const formattedPrice = formatPrice(product.price, product.currency);
             const clientFavorited = isFavorited(product.id);
+            const cover =
+              product.images[0] ||
+              'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=1200&q=80';
 
             return (
               <div
                 key={product.id}
                 onClick={() => onSelectProduct(product)}
-                className="bg-white rounded-3xl overflow-hidden border border-[#d0c5af]/30 shadow-sm hover:shadow-xl transition-all duration-300 group cursor-pointer flex flex-col justify-between"
+                className="bg-white overflow-hidden border border-[#c9a227]/15 hover:border-[#c9a227]/40 transition-all duration-300 group cursor-pointer flex flex-col justify-between"
               >
                 <div>
-                  {/* Изображение */}
-                  <div className="relative h-60 bg-[#e0e0db] overflow-hidden">
-                    <img
-                      src={product.images[0] || 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?auto=format&fit=crop&w=1200&q=80'}
+                  <div className="relative h-64 bg-[#efe8da] overflow-hidden">
+                    <MediaFrame
+                      src={cover}
                       alt={product.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     />
+                    {isVideoSrc(cover) && (
+                      <span className="absolute bottom-3 left-3 w-8 h-8 rounded-full bg-black/40 text-white flex items-center justify-center pointer-events-none">
+                        <span className="material-symbols-outlined text-lg">play_arrow</span>
+                      </span>
+                    )}
 
-                    {/* Статус */}
                     <span
-                      className={`absolute top-3 left-3 text-[10px] font-bold tracking-widest px-2.5 py-1 rounded-full uppercase border backdrop-blur-md ${getStatusStyle(
+                      className={`absolute top-3 left-3 text-[10px] font-medium tracking-widest px-2.5 py-1 uppercase border backdrop-blur-md ${getStatusStyle(
                         product.status
                       )}`}
                     >
                       {statusLabel(product.status)}
                     </span>
 
-                    {/* Кнопка Избранного — своя для админа и для клиента */}
                     {isAdmin ? (
                       <button
                         onClick={(e) => onToggleFavorite(product.id, e)}
                         className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all ${
                           product.isFavorite
                             ? 'bg-white text-[#ba1a1a] shadow-md'
-                            : 'bg-black/30 text-white hover:bg-white hover:text-[#1b1b1d]'
+                            : 'bg-black/30 text-white hover:bg-white hover:text-[#1a1a1a]'
                         }`}
                         title={product.isFavorite ? 'Убрать из избранного' : 'Добавить в избранное'}
                       >
@@ -240,8 +246,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         }}
                         className={`absolute top-3 right-3 p-2 rounded-full backdrop-blur-md transition-all ${
                           clientFavorited
-                            ? 'bg-white text-[#ba1a1a] shadow-md'
-                            : 'bg-black/30 text-white hover:bg-white hover:text-[#1b1b1d]'
+                            ? 'bg-white text-[#9a7b1a] shadow-md'
+                            : 'bg-black/30 text-white hover:bg-white hover:text-[#1a1a1a]'
                         }`}
                         title={clientFavorited ? t('removeFromFavorites') : t('addToFavorites')}
                       >
@@ -249,41 +255,40 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           className="material-symbols-outlined text-lg block"
                           style={{ fontVariationSettings: clientFavorited ? "'FILL' 1" : "'FILL' 0" }}
                         >
-                          favorite
+                          shopping_bag
                         </span>
                       </button>
                     )}
                   </div>
 
-                  {/* Информация */}
                   <div className="p-5 space-y-3">
                     <div className="flex justify-between items-start gap-2">
                       <div>
-                        <span className="text-[11px] font-bold text-[#4d4635] tracking-wider uppercase">
+                        <span className="text-[10px] font-medium text-[#6b6356] tracking-[0.16em] uppercase">
                           {product.sku}
                         </span>
-                        <h3 className="font-semibold text-lg text-[#1b1b1d] group-hover:text-[#735c00] transition-colors leading-snug">
+                        <h3 className="font-brand text-xl text-[#1a1a1a] group-hover:text-[#9a7b1a] transition-colors leading-snug">
                           {product.name}
                         </h3>
                       </div>
                     </div>
 
-                    <div className="text-xl font-bold text-[#735c00]">
+                    <div className="text-lg font-medium text-[#9a7b1a]">
                       {formattedPrice}
                     </div>
 
                     {(product.goldPurity || product.stoneCarats) && (
-                      <div className="grid grid-cols-2 gap-2 text-xs bg-[#f6f3f5] p-2.5 rounded-xl text-[#4d4635]">
+                      <div className="grid grid-cols-2 gap-2 text-xs bg-[#f7f3eb] p-2.5 text-[#6b6356]">
                         {product.goldPurity && (
                           <div>
                             <span className="block text-[10px] uppercase font-medium text-[#7f7663]">{t('cardMetal')}</span>
-                            <span className="font-semibold text-[#1b1b1d]">{product.goldPurity}</span>
+                            <span className="font-medium text-[#1a1a1a]">{product.goldPurity}</span>
                           </div>
                         )}
                         {product.stoneCarats && (
                           <div>
                             <span className="block text-[10px] uppercase font-medium text-[#7f7663]">{t('cardInsert')}</span>
-                            <span className="font-semibold text-[#1b1b1d]">{product.stoneCarats}</span>
+                            <span className="font-medium text-[#1a1a1a]">{product.stoneCarats}</span>
                           </div>
                         )}
                       </div>
@@ -291,13 +296,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </div>
                 </div>
 
-                {/* Футер карточки */}
-                <div className="px-5 pb-5 flex justify-between items-center text-xs text-[#4d4635] border-t border-[#f0edef] pt-3 mt-1">
+                <div className="px-5 pb-5 flex justify-between items-center text-xs text-[#6b6356] border-t border-[#efe8da] pt-3 mt-1">
                   <span className="flex items-center gap-1 font-medium">
-                    <span className="material-symbols-outlined text-sm text-[#735c00]">verified</span>
+                    <span className="material-symbols-outlined text-sm text-[#9a7b1a]">verified</span>
                     {product.certification}
                   </span>
-                  <span className="font-semibold text-[#735c00] group-hover:translate-x-1 transition-transform flex items-center gap-0.5">
+                  <span className="font-medium text-[#9a7b1a] group-hover:translate-x-1 transition-transform flex items-center gap-0.5 uppercase tracking-wider text-[10px]">
                     {t('cardMore')}
                     <span className="material-symbols-outlined text-sm">chevron_right</span>
                   </span>

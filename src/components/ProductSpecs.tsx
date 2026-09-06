@@ -39,7 +39,7 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({ product, onUpdateNot
           </span>
         </div>
         <div className="flex items-start justify-between gap-3">
-          <h2 className="text-3xl md:text-4xl lg:text-[48px] lg:leading-[56px] font-semibold text-[#1b1b1d] tracking-tight mb-1">
+          <h2 className="font-brand text-3xl md:text-4xl lg:text-[48px] lg:leading-[56px] font-medium text-[#1a1a1a] tracking-tight mb-1">
             {product.name}
           </h2>
           {!isAdmin && (
@@ -47,8 +47,8 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({ product, onUpdateNot
               onClick={() => toggleFavorite(product.id)}
               className={`flex-shrink-0 mt-2 p-2.5 rounded-full border transition-all active:scale-95 ${
                 favorited
-                  ? 'bg-[#ffdad6]/40 text-[#ba1a1a] border-[#ba1a1a]/30'
-                  : 'bg-white text-[#4d4635] border-[#d0c5af] hover:bg-[#f6f3f5]'
+                  ? 'bg-[#efe8da] text-[#9a7b1a] border-[#c9a227]/40'
+                  : 'bg-white text-[#6b6356] border-[#c9a227]/30 hover:bg-[#f7f3eb]'
               }`}
               title={favorited ? t('removeFromFavorites') : t('addToFavorites')}
             >
@@ -56,12 +56,12 @@ export const ProductSpecs: React.FC<ProductSpecsProps> = ({ product, onUpdateNot
                 className="material-symbols-outlined text-xl block"
                 style={{ fontVariationSettings: favorited ? "'FILL' 1" : "'FILL' 0" }}
               >
-                favorite
+                shopping_bag
               </span>
             </button>
           )}
         </div>
-        <p className="text-2xl md:text-3xl text-[#735c00] font-bold tracking-tight">
+        <p className="text-2xl md:text-3xl text-[#9a7b1a] font-medium tracking-tight">
           {formattedPrice}
         </p>
       </div>

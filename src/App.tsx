@@ -6,10 +6,9 @@ import { HomePage } from './components/HomePage';
 import { GallerySection } from './components/GallerySection';
 import { ProductSpecs } from './components/ProductSpecs';
 import { ActionBar } from './components/ActionBar';
-import { OrderBar } from './components/OrderBar';
+import { CartDrawer } from './components/CartDrawer';
 import { ProductCatalog } from './components/ProductCatalog';
 import { EditProductModal } from './components/EditProductModal';
-import { ShareModal } from './components/ShareModal';
 import { CategoryManagerModal } from './components/CategoryManagerModal';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { useAdmin } from './contexts/AdminContext';
@@ -21,18 +20,21 @@ import {
   saveProductRemote,
   saveProductsRemote,
   saveCategoriesRemote,
+  saveCategoryCoverRemote,
   deleteProductRemote,
   seedIfEmpty,
+  type CategoryCovers,
 } from './services/catalogStore';
 
 const DEFAULT_CATEGORIES = ['Кольца', 'Колье и Цепи', 'Серьги', 'Браслеты', 'Жесткие браслеты'];
 
 export default function App() {
   const { isAdmin, adminEmail } = useAdmin();
-  const { favoriteIds, clearFavorites } = useClientFavorites();
+  const { favoriteIds, clearFavorites, toggleFavorite } = useClientFavorites();
   const { t } = useLanguage();
   const [products, setProducts] = useState<JewelryProduct[]>([]);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [categoryCovers, setCategoryCovers] = useState<CategoryCovers>({});
   const [isLoading, setIsLoading] = useState(true);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -40,15 +42,12 @@ export default function App() {
   const [viewMode, setViewMode] = useState<ViewMode>('home');
   const [pendingCategory, setPendingCategory] = useState<string | null>(null);
 
-  // Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<JewelryProduct | null>(null);
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Connect to the shared Firestore catalog: seed it once if it's brand new,
-  // then subscribe so every manager's screen updates in realtime.
   useEffect(() => {
     let cancelled = false;
 
@@ -65,7 +64,10 @@ export default function App() {
     );
 
     const unsubCategories = subscribeToCategories(
-      (remoteCategories) => setCategories(remoteCategories),
+      (data) => {
+        setCategories(data.names);
+        setCategoryCovers(data.covers);
+      },
       DEFAULT_CATEGORIES,
       (e) => setConnectionError(String(e))
     );
@@ -83,17 +85,19 @@ export default function App() {
     if (trimmed && !categories.includes(trimmed)) {
       const updated = [...categories, trimmed];
       setCategories(updated);
-      saveCategoriesRemote(updated).catch((e) => setConnectionError(String(e)));
+      saveCategoriesRemote(updated, categoryCovers).catch((e) => setConnectionError(String(e)));
     }
   };
 
   const handleDeleteCategory = (catToDelete: string) => {
     if (!isAdmin) return;
     const updatedCategories = categories.filter((c) => c !== catToDelete);
+    const nextCovers = { ...categoryCovers };
+    delete nextCovers[catToDelete];
     setCategories(updatedCategories);
-    saveCategoriesRemote(updatedCategories).catch((e) => setConnectionError(String(e)));
+    setCategoryCovers(nextCovers);
+    saveCategoriesRemote(updatedCategories, nextCovers).catch((e) => setConnectionError(String(e)));
 
-    // Reassign products in deleted category to "Другое"
     const affected = products
       .filter((p) => p.category === catToDelete)
       .map((p) => ({ ...p, category: 'Другое' }));
@@ -103,6 +107,17 @@ export default function App() {
       );
       saveProductsRemote(affected).catch((e) => setConnectionError(String(e)));
     }
+  };
+
+  const handleSetCategoryCover = (categoryName: string, coverSrc: string | null) => {
+    if (!isAdmin) return;
+    const next = { ...categoryCovers };
+    if (coverSrc) next[categoryName] = coverSrc;
+    else delete next[categoryName];
+    setCategoryCovers(next);
+    saveCategoryCoverRemote(categoryName, coverSrc, categories, categoryCovers).catch((e) =>
+      setConnectionError(String(e))
+    );
   };
 
   const selectedProduct = products.find((p) => p.id === selectedProductId) || products[0];
@@ -167,36 +182,36 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#fcf8fb] flex items-center justify-center">
-        <p className="text-[#1b1b1d]/60">{t('loading')}</p>
+      <div className="min-h-screen bg-[#f7f3eb] flex items-center justify-center">
+        <p className="brand-mark text-[#9a7b1a] tracking-[0.3em] text-lg">{t('loading')}</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#fcf8fb] text-[#1b1b1d] font-sans antialiased flex flex-col selection:bg-[#735c00]/20">
+    <div className="min-h-screen bg-[#f7f3eb] text-[#1a1a1a] font-sans antialiased flex flex-col selection:bg-[#c9a227]/25">
       {connectionError && (
         <div className="fixed top-0 inset-x-0 z-[100] bg-red-600 text-white text-sm text-center py-2 px-4">
           Проблема с подключением к базе данных: {connectionError}
         </div>
       )}
-      {/* Top Header Navbar */}
+
       <Navbar
         currentView={viewMode}
         onViewChange={setViewMode}
-        selectedProduct={selectedProduct ?? null}
-        onOpenShare={() => setIsShareModalOpen(true)}
         productCount={products.length}
+        cartCount={favoriteIds.length}
+        onOpenCart={() => setIsCartOpen(true)}
         isAdmin={isAdmin}
         onOpenAdmin={() => setIsAdminModalOpen(true)}
       />
 
-      {/* Main View Area */}
-      <main className={viewMode === 'home' ? 'flex-1 pt-16' : 'flex-1 pt-16 pb-32'}>
+      <main className={viewMode === 'home' ? 'flex-1 pt-[5.5rem] sm:pt-24 md:pt-28 lg:pt-32' : 'flex-1 pt-[5.5rem] sm:pt-24 md:pt-28 lg:pt-32 pb-24'}>
         {viewMode === 'home' ? (
           <HomePage
             products={products}
             categories={categories}
+            categoryCovers={categoryCovers}
             onShopNow={() => setViewMode('catalog')}
             onSelectCategory={(cat) => {
               setPendingCategory(cat);
@@ -210,13 +225,10 @@ export default function App() {
         ) : viewMode === 'detail' && selectedProduct ? (
           <div className="max-w-screen-xl mx-auto md:px-8 py-4 md:py-8">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-              {/* Image Gallery */}
               <GallerySection
                 images={selectedProduct.images}
                 productName={selectedProduct.name}
               />
-
-              {/* Specs & Info */}
               <ProductSpecs
                 product={selectedProduct}
                 onUpdateNotes={handleUpdateNotes}
@@ -239,7 +251,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Fixed Action Bar (Only shown on detail view, admins only) */}
       {viewMode === 'detail' && selectedProduct && isAdmin && (
         <ActionBar
           onEditProduct={handleOpenEditProductModal}
@@ -248,12 +259,21 @@ export default function App() {
         />
       )}
 
-      {/* Floating order bar for customers with favorited items */}
-      {!isAdmin && (
-        <OrderBar products={products} favoriteIds={favoriteIds} onClearFavorites={clearFavorites} />
-      )}
+      <CartDrawer
+        isOpen={isCartOpen}
+        onClose={() => setIsCartOpen(false)}
+        products={products}
+        favoriteIds={favoriteIds}
+        onClearFavorites={clearFavorites}
+        onRemoveFavorite={(id) => {
+          if (favoriteIds.includes(id)) toggleFavorite(id);
+        }}
+        onSelectProduct={(p) => {
+          setSelectedProductId(p.id);
+          setViewMode('detail');
+        }}
+      />
 
-      {/* Modals */}
       <EditProductModal
         product={editingProduct}
         isOpen={isEditModalOpen}
@@ -264,21 +284,15 @@ export default function App() {
         onAddCategory={handleAddCategory}
       />
 
-      {selectedProduct && (
-        <ShareModal
-          product={selectedProduct}
-          isOpen={isShareModalOpen}
-          onClose={() => setIsShareModalOpen(false)}
-        />
-      )}
-
       <CategoryManagerModal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
         categories={categories}
+        covers={categoryCovers}
         products={products}
         onAddCategory={handleAddCategory}
         onDeleteCategory={handleDeleteCategory}
+        onSetCategoryCover={handleSetCategoryCover}
       />
 
       <AdminLoginModal

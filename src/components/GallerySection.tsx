@@ -43,7 +43,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images, productN
       <div
         ref={galleryRef}
         onScroll={handleScroll}
-        className="gallery-container flex overflow-x-auto snap-x snap-mandatory h-[420px] sm:h-[500px] md:h-[600px] md:rounded-3xl shadow-lg bg-[#e0e0db] relative cursor-pointer"
+        className="gallery-container flex overflow-x-auto snap-x snap-mandatory h-[420px] sm:h-[500px] md:h-[600px] md:rounded-sm shadow-lg bg-[#efe8da] relative cursor-pointer"
       >
         {images.map((imgUrl, idx) => (
           <div
@@ -83,7 +83,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images, productN
             onClick={() => scrollToImage(idx)}
             className={`w-2.5 h-2.5 rounded-full transition-all ${
               idx === activeIndex
-                ? 'bg-[#735c00] w-6'
+                ? 'bg-[#c9a227] w-6'
                 : 'bg-white/60 hover:bg-white'
             }`}
             aria-label={`Go to image ${idx + 1}`}
@@ -100,7 +100,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ images, productN
               onClick={() => scrollToImage(idx)}
               className={`w-16 h-16 rounded-xl border-2 overflow-hidden shadow-md cursor-pointer transition-all relative ${
                 idx === activeIndex
-                  ? 'border-[#735c00] scale-105 ring-2 ring-[#735c00]/30'
+                  ? 'border-[#c9a227] scale-105 ring-2 ring-[#c9a227]/30'
                   : 'border-white opacity-60 hover:opacity-100 hover:scale-100'
               }`}
             >
