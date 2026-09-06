@@ -62,7 +62,7 @@ interface MediaFrameProps {
   videoClassName?: string;
 }
 
-/** Renders image or autoplaying muted video (Tiffany-style product/category media). */
+/** Renders image or autoplaying muted video ( product/category media). */
 export const MediaFrame: React.FC<MediaFrameProps> = ({
   src,
   alt,

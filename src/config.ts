@@ -8,7 +8,7 @@ export const PHONE_HREF = 'tel:+996504401082';
 export const INSTAGRAM_USERNAME = 'aiai_goldkg';
 
 /**
- * Cover media for the home hero (Tiffany-style full-bleed).
+ * Cover media for the home hero .
  * Place your own files in /public/hero/ — see public/hero/README.txt
  * Video is preferred when present.
  */

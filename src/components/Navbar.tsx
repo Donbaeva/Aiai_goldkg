@@ -95,7 +95,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* Center brand — Tiffany-style, large */}
+        {/* Center brand, large */}
         <button
           onClick={() => onViewChange('home')}
           className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center group max-w-[58vw] sm:max-w-[68vw] md:max-w-[75vw]"

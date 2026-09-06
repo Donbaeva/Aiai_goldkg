@@ -89,7 +89,7 @@ export const CategoryManagerModal: React.FC<CategoryManagerModalProps> = ({
             <p className="brand-mark text-sm text-[#9a7b1a] tracking-[0.22em]">AiAi Gold</p>
             <h2 className="font-brand text-2xl text-[#1a1a1a] mt-1">Категории</h2>
             <p className="text-xs text-[#6b6356] mt-1">
-              Названия, превью-фото или короткое видео (как у Tiffany)
+              Названия, превью-фото или короткое видео
             </p>
           </div>
           <button
