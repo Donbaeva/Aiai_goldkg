@@ -7,138 +7,25 @@ import {
   deleteDoc,
   writeBatch,
 } from 'firebase/firestore';
-import { db, isFirebaseConfigured } from '../firebase';
+import { db } from '../firebase';
 import { JewelryProduct } from '../types';
 
 const PRODUCTS_COLLECTION = 'products';
-const LOCAL_PRODUCTS_KEY = 'aiaigold_local_products';
-const LOCAL_CATEGORIES_KEY = 'aiaigold_local_categories';
-const LOCAL_COVERS_KEY = 'aiaigold_local_category_covers';
-const LOCAL_HERO_KEY = 'aiaigold_local_hero';
+const categoriesDocRef = doc(db, 'meta', 'categories');
 
 export type CategoryCovers = Record<string, string>;
-
-export interface HeroCaptions {
-  ru: string;
-  ky: string;
-  en: string;
-}
-
-export interface HeroSettings {
-  /** Photo or video data URL. Empty string = use the default fallback image. */
-  media: string;
-  captions: HeroCaptions;
-}
-
-const DEFAULT_HERO_SETTINGS: HeroSettings = {
-  media: '',
-  captions: { ru: '', ky: '', en: '' },
-};
 
 export interface CategoryData {
   names: string[];
   covers: CategoryCovers;
 }
 
-function readLocalProducts(): JewelryProduct[] | null {
-  try {
-    const raw = localStorage.getItem(LOCAL_PRODUCTS_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeLocalProducts(products: JewelryProduct[]) {
-  localStorage.setItem(LOCAL_PRODUCTS_KEY, JSON.stringify(products));
-}
-
-function readLocalCategories(): string[] | null {
-  try {
-    const raw = localStorage.getItem(LOCAL_CATEGORIES_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeLocalCategories(categories: string[]) {
-  localStorage.setItem(LOCAL_CATEGORIES_KEY, JSON.stringify(categories));
-}
-
-function readLocalCovers(): CategoryCovers {
-  try {
-    const raw = localStorage.getItem(LOCAL_COVERS_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeLocalCovers(covers: CategoryCovers) {
-  localStorage.setItem(LOCAL_COVERS_KEY, JSON.stringify(covers));
-}
-
-function readLocalHero(): HeroSettings {
-  try {
-    const raw = localStorage.getItem(LOCAL_HERO_KEY);
-    if (!raw) return DEFAULT_HERO_SETTINGS;
-    const parsed = JSON.parse(raw);
-    return {
-      media: typeof parsed.media === 'string' ? parsed.media : '',
-      captions: {
-        ru: parsed.captions?.ru || '',
-        ky: parsed.captions?.ky || '',
-        en: parsed.captions?.en || '',
-      },
-    };
-  } catch {
-    return DEFAULT_HERO_SETTINGS;
-  }
-}
-
-function writeLocalHero(settings: HeroSettings) {
-  localStorage.setItem(LOCAL_HERO_KEY, JSON.stringify(settings));
-}
-
-const localListeners = {
-  products: new Set<(products: JewelryProduct[]) => void>(),
-  categories: new Set<(data: CategoryData) => void>(),
-  hero: new Set<(settings: HeroSettings) => void>(),
-};
-
-function notifyLocalProducts() {
-  const products = readLocalProducts() || [];
-  localListeners.products.forEach((cb) => cb(products));
-}
-
-function notifyLocalCategories(fallback: string[]) {
-  const data: CategoryData = {
-    names: readLocalCategories() || fallback,
-    covers: readLocalCovers(),
-  };
-  localListeners.categories.forEach((cb) => cb(data));
-}
-
+/** Subscribes to live updates of every product. Fires immediately with
+ * current data, then again whenever ANY manager changes ANY product. */
 export function subscribeToProducts(
   onChange: (products: JewelryProduct[]) => void,
   onError?: (err: unknown) => void
 ) {
-  if (!db || !isFirebaseConfigured) {
-    const existing = readLocalProducts();
-    onChange(existing || []);
-    localListeners.products.add(onChange);
-    return () => {
-      localListeners.products.delete(onChange);
-    };
-  }
-
   return onSnapshot(
     collection(db, PRODUCTS_COLLECTION),
     (snapshot) => {
@@ -149,23 +36,12 @@ export function subscribeToProducts(
   );
 }
 
+/** Subscribes to live updates of the shared category list (+ covers). */
 export function subscribeToCategories(
   onChange: (data: CategoryData) => void,
   fallback: string[],
   onError?: (err: unknown) => void
 ) {
-  if (!db || !isFirebaseConfigured) {
-    onChange({
-      names: readLocalCategories() || fallback,
-      covers: readLocalCovers(),
-    });
-    localListeners.categories.add(onChange);
-    return () => {
-      localListeners.categories.delete(onChange);
-    };
-  }
-
-  const categoriesDocRef = doc(db, 'meta', 'categories');
   return onSnapshot(
     categoriesDocRef,
     (snap) => {
@@ -185,39 +61,19 @@ export function subscribeToCategories(
   );
 }
 
+/** Creates or overwrites a single product document. */
 export async function saveProductRemote(product: JewelryProduct) {
-  if (!db || !isFirebaseConfigured) {
-    const products = readLocalProducts() || [];
-    const idx = products.findIndex((p) => p.id === product.id);
-    if (idx >= 0) products[idx] = product;
-    else products.unshift(product);
-    writeLocalProducts(products);
-    notifyLocalProducts();
-    return;
-  }
   await setDoc(doc(db, PRODUCTS_COLLECTION, product.id), product);
 }
 
+/** Persists several product updates at once (e.g. after deleting a category). */
 export async function saveProductsRemote(products: JewelryProduct[]) {
-  if (!db || !isFirebaseConfigured) {
-    const existing = readLocalProducts() || [];
-    const map = new Map(existing.map((p) => [p.id, p]));
-    products.forEach((p) => map.set(p.id, p));
-    writeLocalProducts([...map.values()]);
-    notifyLocalProducts();
-    return;
-  }
   const batch = writeBatch(db);
   products.forEach((p) => batch.set(doc(db, PRODUCTS_COLLECTION, p.id), p));
   await batch.commit();
 }
 
 export async function deleteProductRemote(productId: string) {
-  if (!db || !isFirebaseConfigured) {
-    writeLocalProducts((readLocalProducts() || []).filter((p) => p.id !== productId));
-    notifyLocalProducts();
-    return;
-  }
   await deleteDoc(doc(db, PRODUCTS_COLLECTION, productId));
 }
 
@@ -225,18 +81,6 @@ export async function saveCategoriesRemote(
   categories: string[],
   covers?: CategoryCovers
 ) {
-  if (!db || !isFirebaseConfigured) {
-    writeLocalCategories(categories);
-    const source = covers ?? readLocalCovers();
-    const pruned: CategoryCovers = {};
-    categories.forEach((name) => {
-      if (source[name]) pruned[name] = source[name];
-    });
-    writeLocalCovers(pruned);
-    notifyLocalCategories(categories);
-    return;
-  }
-
   const payload: { list: string[]; covers?: CategoryCovers } = { list: categories };
   if (covers !== undefined) {
     const pruned: CategoryCovers = {};
@@ -245,7 +89,7 @@ export async function saveCategoriesRemote(
     });
     payload.covers = pruned;
   }
-  await setDoc(doc(db, 'meta', 'categories'), payload, { merge: true });
+  await setDoc(categoriesDocRef, payload, { merge: true });
 }
 
 /** Update cover (photo or video data URL) for one category. */
@@ -261,65 +105,10 @@ export async function saveCategoryCoverRemote(
   await saveCategoriesRemote(allCategories, next);
 }
 
-/** Subscribes to live updates of the homepage hero (cover photo/video + caption). */
-export function subscribeToHeroSettings(
-  onChange: (settings: HeroSettings) => void,
-  onError?: (err: unknown) => void
-) {
-  if (!db || !isFirebaseConfigured) {
-    onChange(readLocalHero());
-    localListeners.hero.add(onChange);
-    return () => {
-      localListeners.hero.delete(onChange);
-    };
-  }
-
-  return onSnapshot(
-    doc(db, 'meta', 'hero'),
-    (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        onChange({
-          media: typeof data.media === 'string' ? data.media : '',
-          captions: {
-            ru: data.captions?.ru || '',
-            ky: data.captions?.ky || '',
-            en: data.captions?.en || '',
-          },
-        });
-      } else {
-        onChange(DEFAULT_HERO_SETTINGS);
-      }
-    },
-    onError
-  );
-}
-
-export async function saveHeroSettingsRemote(settings: HeroSettings) {
-  if (!db || !isFirebaseConfigured) {
-    writeLocalHero(settings);
-    localListeners.hero.forEach((cb) => cb(settings));
-    return;
-  }
-  await setDoc(doc(db, 'meta', 'hero'), settings);
-}
-
 export async function seedIfEmpty(
   initialProducts: JewelryProduct[],
   initialCategories: string[]
 ) {
-  if (!db || !isFirebaseConfigured) {
-    if (!readLocalProducts()) {
-      writeLocalProducts(initialProducts);
-      notifyLocalProducts();
-    }
-    if (!readLocalCategories()) {
-      writeLocalCategories(initialCategories);
-      notifyLocalCategories(initialCategories);
-    }
-    return;
-  }
-
   const existing = await getDocs(collection(db, PRODUCTS_COLLECTION));
   if (existing.empty) {
     const batch = writeBatch(db);
@@ -330,4 +119,3 @@ export async function seedIfEmpty(
     await batch.commit();
   }
 }
-
