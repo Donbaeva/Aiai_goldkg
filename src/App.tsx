@@ -56,9 +56,15 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
 
-    seedIfEmpty(INITIAL_PRODUCTS, DEFAULT_CATEGORIES).catch((e) => {
-      if (!cancelled) setConnectionError(String(e));
-    });
+    // Seeding writes to Firestore, so it must only ever be attempted by a
+    // logged-in admin — a plain visitor is never authenticated and this
+    // write would be rejected by the security rules (permission-denied),
+    // which is what was showing up as a "connection" error for everyone.
+    if (isAdmin) {
+      seedIfEmpty(INITIAL_PRODUCTS, DEFAULT_CATEGORIES).catch((e) => {
+        if (!cancelled) setConnectionError(String(e));
+      });
+    }
 
     const unsubProducts = subscribeToProducts(
       (remoteProducts) => {
@@ -88,7 +94,7 @@ export default function App() {
       unsubCategories();
       unsubHero();
     };
-  }, []);
+  }, [isAdmin]);
 
   const handleAddCategory = (newCat: string) => {
     if (!isAdmin) return;
