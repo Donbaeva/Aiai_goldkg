@@ -151,4 +151,29 @@ export async function seedIfEmpty(
 AIAI_CLAUDE_EOF_MARKER
 echo "  ok: src/services/catalogStore.ts"
 
-echo "Готово. Теперь: заполните .env.local (см. .env.example) и выполните: git add -A && git commit -m \"always save to Firebase\" && git push"
+cat > src/services/authService.ts << 'AIAI_CLAUDE_EOF_MARKER'
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged,
+  type User,
+} from 'firebase/auth';
+import { auth } from '../firebase';
+
+/** Fires immediately with the current admin (or null), then again on every
+ * sign-in/sign-out — anywhere in the app. */
+export function subscribeToAuthState(onChange: (user: User | null) => void) {
+  return onAuthStateChanged(auth, onChange);
+}
+
+export async function signInAdmin(email: string, password: string) {
+  await signInWithEmailAndPassword(auth, email, password);
+}
+
+export async function signOutAdmin() {
+  await signOut(auth);
+}
+AIAI_CLAUDE_EOF_MARKER
+echo "  ok: src/services/authService.ts"
+
+echo "Готово. Теперь: git add -A && git commit -m \"always save to Firebase\" && git push"
